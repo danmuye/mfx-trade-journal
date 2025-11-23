@@ -33,7 +33,9 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
-import { supabase, useAuth, Auth } from './supabase'; // Adjust path as needed
+
+// ✅ This import will now work because we updated supabase.js in Step 1
+import { supabase, useAuth, Auth } from './supabase'; 
 
 // --- Mock Data & Constants ---
 const MISTAKE_TYPES = ['FOMO', 'Revenge', 'Over-leveraging', 'Poor Execution', 'Early Exit', 'No Stop Loss'];
@@ -379,13 +381,13 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('screenshots')  // ✅ CHANGED TO 'screenshots'
+        .from('screenshots')  // ✅ Ensure this bucket exists in Supabase
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('screenshots')  // ✅ CHANGED TO 'screenshots'
+        .from('screenshots')
         .getPublicUrl(filePath);
 
       setFormData(prev => ({ ...prev, screenshot_url: publicUrl }));
@@ -500,7 +502,7 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
             <div className="flex flex-wrap gap-2 p-2 bg-black/30 border border-white/10 rounded min-h-[40px]">
               {formData.tags.map((tag, idx) => (
                 <span key={idx} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded flex items-center gap-1">
-                  {tag} <button type="button" onClick={() => setFormData(prev => ({...prev, tags: prev.tags.filter((_, i) => i !== idx)}))}><X className="w-3 h-3"/></button>  {/* ✅ FIXED: Added closing parenthesis */}
+                  {tag} <button type="button" onClick={() => setFormData(prev => ({...prev, tags: prev.tags.filter((_, i) => i !== idx)}))}><X className="w-3 h-3"/></button>
                 </span>
               ))}
               <input type="text" value={activeTagInput} onChange={e => setActiveTagInput(e.target.value)} onKeyDown={handleTagAdd} className="bg-transparent outline-none text-sm text-white flex-1 min-w-[100px]" placeholder="Add tag..." />
@@ -558,7 +560,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, trade }) => {
     if (trade?.screenshot_url) {
       try {
         const fileName = trade.screenshot_url.split('/').pop();
-        await supabase.storage.from('screenshots').remove([fileName]);  // ✅ CHANGED TO 'screenshots'
+        await supabase.storage.from('screenshots').remove([fileName]); 
       } catch (error) {
         console.error('Error deleting screenshot:', error);
       }
@@ -803,7 +805,7 @@ const App = () => {
       if (tradeToDelete?.screenshot_url) {
         try {
           const fileName = tradeToDelete.screenshot_url.split('/').pop();
-          await supabase.storage.from('screenshots').remove([fileName]);  // ✅ CHANGED TO 'screenshots'
+          await supabase.storage.from('screenshots').remove([fileName]);  
         } catch (error) {
           console.error('Error deleting screenshot:', error);
         }
