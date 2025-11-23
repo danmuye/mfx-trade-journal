@@ -33,7 +33,7 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
-import { supabase, useAuth, Auth } from './supabaseClient'; // Adjust path as needed
+import { supabase, useAuth, Auth } from './supabase'; // Adjust path as needed
 
 // --- Mock Data & Constants ---
 const MISTAKE_TYPES = ['FOMO', 'Revenge', 'Over-leveraging', 'Poor Execution', 'Early Exit', 'No Stop Loss'];
