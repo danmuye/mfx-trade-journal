@@ -383,13 +383,13 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('SCREENSHOTS') // 🚨 CRITICAL FIX: Ensure this matches your policy and bucket name exactly (SCREENSHOTS)
+        .from('screenshots') // 🚨 CRITICAL FIX: Ensure this matches your policy and bucket name exactly (SCREENSHOTS)
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('SCREENSHOTS') // 🚨 CRITICAL FIX: Ensure this matches your bucket name exactly
+        .from('screenshots') // 🚨 CRITICAL FIX: Ensure this matches your bucket name exactly
         .getPublicUrl(filePath);
 
       setFormData(prev => ({ ...prev, screenshot_url: publicUrl }));
@@ -563,7 +563,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, trade }) => {
       try {
         // ✅ FIX: Use consistent bucket name SCREENSHOTS (case-sensitive)
         const fileNamePath = trade.screenshot_url.split('/public/')[1]; // Get path including user_id
-        await supabase.storage.from('SCREENSHOTS').remove([fileNamePath]); 
+        await supabase.storage.from('screenshots').remove([fileNamePath]); 
       } catch (error) {
         console.error('Error deleting screenshot:', error);
       }
@@ -822,7 +822,7 @@ const App = () => {
         try {
           // ✅ FIX: Use consistent bucket name SCREENSHOTS (case-sensitive)
           const fileNamePath = tradeToDelete.screenshot_url.split('/public/')[1]; 
-          await supabase.storage.from('SCREENSHOTS').remove([fileNamePath]); 
+          await supabase.storage.from('screenshots').remove([fileNamePath]); 
         } catch (error) {
           console.error('Error deleting screenshot:', error);
         }
