@@ -314,6 +314,7 @@ const Analytics = ({ trades }) => {
 };
 
 const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
+  const { user } = useAuth(); // ✅ FIX: Get user object here for file path
   const [formData, setFormData] = useState({
     pair: 'EUR/AUD', 
     type: 'Long',
@@ -377,17 +378,18 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
 
     try {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random()}.${fileExt}`;
+      // 🚨 CRITICAL FIX: Include user.id in path for RLS and unique naming
+      const fileName = `${user.id}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('SCREENSHOTS')  // ✅ Ensure this bucket exists in Supabase
+        .from('SCREENSHOTS') // 🚨 CRITICAL FIX: Ensure this matches your policy and bucket name exactly (SCREENSHOTS)
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('SCREENSHOTS')
+        .from('SCREENSHOTS') // 🚨 CRITICAL FIX: Ensure this matches your bucket name exactly
         .getPublicUrl(filePath);
 
       setFormData(prev => ({ ...prev, screenshot_url: publicUrl }));
@@ -559,8 +561,9 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, trade }) => {
   const handleDelete = async () => {
     if (trade?.screenshot_url) {
       try {
-        const fileName = trade.screenshot_url.split('/').pop();
-        await supabase.storage.from('screenshots').remove([fileName]); 
+        // ✅ FIX: Use consistent bucket name SCREENSHOTS (case-sensitive)
+        const fileNamePath = trade.screenshot_url.split('/public/')[1]; // Get path including user_id
+        await supabase.storage.from('SCREENSHOTS').remove([fileNamePath]); 
       } catch (error) {
         console.error('Error deleting screenshot:', error);
       }
@@ -651,7 +654,7 @@ const JournalList = ({ trades, onEdit, onDelete }) => {
                 <th className="p-4 font-medium">Date</th>
                 <th className="p-4 font-medium">Pair/Type</th>
                 <th className="p-4 font-medium">Setup</th>
-                <th className="p-4 font-medium">Outcome</th>
+                <th className="p-4 font-medium">Mistake</th> {/* Corrected header based on content */}
                 <th className="p-4 font-medium">PnL</th>
                 <th className="p-4 font-medium">Tags</th>
                 <th className="p-4 font-medium">Screenshot</th>
@@ -668,13 +671,10 @@ const JournalList = ({ trades, onEdit, onDelete }) => {
                   </td>
                   <td className="p-4">
                     <span className="text-gray-300">{trade.setup}</span>
-                    {trade.mistake && <div className="text-xs text-rose-400 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> {trade.mistake}</div>}
-                    {/* DISPLAY SCREENSHOT THUMBNAIL */}
-                    {trade.screenshot_url && (
-                      <img src={trade.screenshot_url} alt="Trade screenshot" className="w-16 h-16 rounded mt-2 border border-white/10 object-cover" />
-                    )}
                   </td>
-                  <td className="p-4"><NeonBadge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</NeonBadge></td>
+                  <td className="p-4">
+                     {trade.mistake && <div className="text-xs text-rose-400 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> {trade.mistake}</div>}
+                  </td>
                   <td className="p-4 font-mono"><span className={trade.pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}>{trade.pnl > 0 ? '+' : ''}{trade.pnl}</span></td>
                   <td className="p-4">
                     <div className="flex flex-wrap gap-1">
@@ -709,7 +709,7 @@ const App = () => {
   const { user, signOut } = useAuth()
   const [currentView, setCurrentView] = useState(() => localStorage.getItem('muye_current_view') || 'dashboard')
   const [trades, setTrades] = useState([])
-  const [startingBalance, setStartingBalance] = useState(9443)
+  const [startingBalance, setStartingBalance] = useState(0) // ✅ FIX: Default to 0, will be overwritten by DB or default creation
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [tradeToEdit, setTradeToEdit] = useState(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
@@ -746,8 +746,21 @@ const App = () => {
       .eq('user_id', user.id)
       .single()
     
-    if (error) console.error('Error loading balance:', error)
-    else if (data) setStartingBalance(data.starting_balance)
+    // 🚨 CRITICAL FIX: Handle case where user_settings row is missing (error code PGRST116)
+    if (error && error.code === 'PGRST116') {
+        console.log('No user_settings found, creating default row...');
+        const defaultBalance = 5000; // Use a reasonable default for new users
+        await supabase
+          .from('user_settings')
+          .insert({ user_id: user.id, starting_balance: defaultBalance });
+        setStartingBalance(defaultBalance);
+    } 
+    else if (error) {
+        console.error('Error loading balance:', error)
+    }
+    else if (data) {
+        setStartingBalance(data.starting_balance)
+    }
   }
 
   // Save balance to Supabase
@@ -755,9 +768,12 @@ const App = () => {
     const newStartingBalance = newCurrentBalance - totalPnL
     setStartingBalance(newStartingBalance)
     
-    await supabase
+    // ✅ FIX: Use upsert, which handles both insert and update
+    const { error } = await supabase
       .from('user_settings')
-      .upsert({ user_id: user.id, starting_balance: newStartingBalance })
+      .upsert({ user_id: user.id, starting_balance: newStartingBalance }, { onConflict: 'user_id' })
+      
+    if (error) console.error('Error updating balance:', error)
   }
 
   // Save trade to Supabase
@@ -804,8 +820,9 @@ const App = () => {
       // Also delete screenshot from storage
       if (tradeToDelete?.screenshot_url) {
         try {
-          const fileName = tradeToDelete.screenshot_url.split('/').pop();
-          await supabase.storage.from('screenshots').remove([fileName]);  
+          // ✅ FIX: Use consistent bucket name SCREENSHOTS (case-sensitive)
+          const fileNamePath = tradeToDelete.screenshot_url.split('/public/')[1]; 
+          await supabase.storage.from('SCREENSHOTS').remove([fileNamePath]); 
         } catch (error) {
           console.error('Error deleting screenshot:', error);
         }
