@@ -381,13 +381,13 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
       const filePath = `${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('screenshots')  // ✅ Ensure this bucket exists in Supabase
+        .from('SCREENSHOTS')  // ✅ Ensure this bucket exists in Supabase
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('screenshots')
+        .from('SCREENSHOTS')
         .getPublicUrl(filePath);
 
       setFormData(prev => ({ ...prev, screenshot_url: publicUrl }));
