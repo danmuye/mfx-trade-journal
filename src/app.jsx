@@ -500,7 +500,7 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
             <div className="flex flex-wrap gap-2 p-2 bg-black/30 border border-white/10 rounded min-h-[40px]">
               {formData.tags.map((tag, idx) => (
                 <span key={idx} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded flex items-center gap-1">
-                  {tag} <button type="button" onClick={() => setFormData(prev => ({...prev, tags: prev.tags.filter((_, i) => i !== idx)})}><X className="w-3 h-3"/></button>
+                  {tag} <button type="button" onClick={() => setFormData(prev => ({...prev, tags: prev.tags.filter((_, i) => i !== idx)}))}><X className="w-3 h-3"/></button>  {/* ✅ FIXED: Added closing parenthesis */}
                 </span>
               ))}
               <input type="text" value={activeTagInput} onChange={e => setActiveTagInput(e.target.value)} onKeyDown={handleTagAdd} className="bg-transparent outline-none text-sm text-white flex-1 min-w-[100px]" placeholder="Add tag..." />
