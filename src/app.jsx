@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   LayoutDashboard, 
   BookOpen, 
@@ -18,7 +18,8 @@ import {
   Pencil,
   Trash2,
   Wallet,
-  User
+  User,
+  LogOut
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -32,6 +33,7 @@ import {
   ResponsiveContainer,
   Cell
 } from 'recharts';
+import { supabase, useAuth, Auth } from './supabaseClient'; // Adjust path as needed
 
 // --- Mock Data & Constants ---
 const MISTAKE_TYPES = ['FOMO', 'Revenge', 'Over-leveraging', 'Poor Execution', 'Early Exit', 'No Stop Loss'];
@@ -49,7 +51,7 @@ const GlassCard = ({ children, className = "", hoverEffect = false }) => (
 const NeonBadge = ({ children, type = 'neutral' }) => {
   const styles = {
     win: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]',
-    loss: 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_10px_rgba(244,63,94,0.2)]',
+    loss: 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_20px_rgba(244,63,94,0.2)]',
     neutral: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.2)]',
     purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]',
   };
@@ -214,7 +216,7 @@ const MistakeTracker = ({ trades }) => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-light text-rose-400">-${m.cost}</div>
+                    <div className="text-xl font-light text-rose-400">${m.cost.toFixed(2)}</div>
                     <div className="text-xs text-gray-500">Lost Revenue</div>
                   </div>
                 </GlassCard>
@@ -234,7 +236,7 @@ const MistakeTracker = ({ trades }) => {
                 <AlertTriangle className="w-8 h-8 text-rose-500" />
               </div>
               <h3 className="text-xl font-light text-white">Cost of Errors</h3>
-              <p className="text-3xl font-thin text-rose-400">-${mistakes.reduce((acc, curr) => acc + curr.cost, 0)}</p>
+              <p className="text-3xl font-thin text-rose-400">${mistakes.reduce((acc, curr) => acc + curr.cost, 0).toFixed(2)}</p>
               <p className="text-xs text-gray-400 max-w-[200px]">Total realized losses attributed to psychological or technical errors.</p>
             </div>
           </GlassCard>
@@ -291,7 +293,7 @@ const Analytics = ({ trades }) => {
             <h3 className="text-lg font-light text-gray-200 mb-4">Most Profitable Pair</h3>
             <div className="flex items-center justify-between">
               <div className="text-3xl font-thin text-emerald-400">{data.length > 0 ? data[0]?.name : 'N/A'}</div>
-              <div className="text-xl font-light text-gray-400">+${data.length > 0 ? data[0]?.pnl : 0}</div>
+              <div className="text-xl font-light text-gray-400">+${data.length > 0 ? data[0]?.pnl.toFixed(2) : 0}</div>
             </div>
           </GlassCard>
           <GlassCard className="p-6">
@@ -299,7 +301,7 @@ const Analytics = ({ trades }) => {
             <div className="flex items-center justify-between">
               <div className="text-3xl font-thin text-rose-400">{data.length > 0 ? data[data.length-1]?.name : 'N/A'}</div>
               <div className="text-xl font-light text-gray-400">
-                {data.length > 0 ? (data[data.length-1]?.pnl > 0 ? '+' : '') + data[data.length-1]?.pnl : 0}
+                {data.length > 0 ? (data[data.length-1]?.pnl > 0 ? '+' : '') + data[data.length-1]?.pnl.toFixed(2) : 0}
               </div>
             </div>
           </GlassCard>
@@ -320,9 +322,13 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
     mistake: '',
     notes: '',
     tags: [],
-    date: new Date().toISOString().split('T')[0]
+    date: new Date().toISOString().split('T')[0],
+    screenshot_url: null
   });
   const [activeTagInput, setActiveTagInput] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [screenshotFile, setScreenshotFile] = useState(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -333,7 +339,9 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
           entry: tradeToEdit.entry.toString(),
           exit: tradeToEdit.exit.toString(),
           mistake: tradeToEdit.mistake || '',
+          screenshot_url: tradeToEdit.screenshot_url || null
         });
+        setScreenshotFile(null);
       } else {
         setFormData({
           pair: 'EUR/AUD', 
@@ -345,13 +353,50 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
           mistake: '',
           notes: '',
           tags: [],
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
+          screenshot_url: null
         });
+        setScreenshotFile(null);
       }
     }
   }, [isOpen, tradeToEdit]);
 
-  if (!isOpen) return null;
+  const handleScreenshotUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    setUploading(true);
+    setScreenshotFile(file);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}_${Math.random()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('screenshots')  // ✅ CHANGED TO 'screenshots'
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('screenshots')  // ✅ CHANGED TO 'screenshots'
+        .getPublicUrl(filePath);
+
+      setFormData(prev => ({ ...prev, screenshot_url: publicUrl }));
+    } catch (error) {
+      console.error('Error uploading screenshot:', error);
+      alert('Failed to upload screenshot');
+      setScreenshotFile(null);
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const handleTagAdd = (e) => {
     if (e.key === 'Enter' && activeTagInput) {
@@ -373,17 +418,19 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
         entry: isNaN(entryVal) ? 0 : entryVal,
         exit: isNaN(exitVal) ? 0 : exitVal,
         outcome: (isNaN(pnlVal) ? 0 : pnlVal) >= 0 ? 'WIN' : 'LOSS',
-        screenshot: false,
         id: tradeToEdit ? tradeToEdit.id : Date.now()
     };
 
     onSave(tradeData);
+    setScreenshotFile(null);
     onClose();
   };
 
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <GlassCard className="w-full max-w-2xl p-0 overflow-hidden shadow-2xl shadow-purple-500/10">
+      <GlassCard className="w-full max-w-2xl p-0 overflow-hidden shadow-2xl shadow-purple-500/10 max-h-[95vh]">
         <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
           <h2 className="text-xl font-light text-white tracking-wide flex items-center gap-2">
             <Plus className="w-5 h-5 text-cyan-400" /> {tradeToEdit ? 'Edit Trade' : 'Log New Trade'}
@@ -391,23 +438,61 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
           <button onClick={onClose} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
         </div>
         
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(95vh-120px)]">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1"><label className="text-xs text-gray-500 uppercase">Date</label><input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none" /></div>
-            <div className="space-y-1"><label className="text-xs text-gray-500 uppercase">Pair</label><input type="text" value={formData.pair} onChange={e => setFormData({...formData, pair: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none" /></div>
-            <div className="space-y-1"><label className="text-xs text-gray-500 uppercase">Direction</label><select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none"><option>Long</option><option>Short</option></select></div>
-            <div className="space-y-1"><label className="text-xs text-gray-500 uppercase">Session</label><select className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none">{SESSIONS.map(s => <option key={s}>{s}</option>)}</select></div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500 uppercase">Date</label>
+              <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500 uppercase">Pair</label>
+              <input type="text" value={formData.pair} onChange={e => setFormData({...formData, pair: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500 uppercase">Direction</label>
+              <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none">
+                <option>Long</option>
+                <option>Short</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500 uppercase">Session</label>
+              <select className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none">
+                {SESSIONS.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-4 bg-white/5 p-4 rounded-lg border border-white/5">
-            <div className="space-y-1"><label className="text-xs text-cyan-400 uppercase">Entry Price</label><input type="number" step="0.0001" value={formData.entry} onChange={e => setFormData({...formData, entry: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-cyan-500 outline-none" placeholder="0.0000" /></div>
-            <div className="space-y-1"><label className="text-xs text-purple-400 uppercase">Exit Price</label><input type="number" step="0.0001" value={formData.exit} onChange={e => setFormData({...formData, exit: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-purple-500 outline-none" placeholder="0.0000" /></div>
-            <div className="space-y-1"><label className="text-xs text-emerald-400 uppercase">Realized PnL ($)</label><input type="number" value={formData.pnl} onChange={e => setFormData({...formData, pnl: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-emerald-500 outline-none" placeholder="0.00" /></div>
+            <div className="space-y-1">
+              <label className="text-xs text-cyan-400 uppercase">Entry Price</label>
+              <input type="number" step="0.0001" value={formData.entry} onChange={e => setFormData({...formData, entry: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-cyan-500 outline-none" placeholder="0.0000" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-purple-400 uppercase">Exit Price</label>
+              <input type="number" step="0.0001" value={formData.exit} onChange={e => setFormData({...formData, exit: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-purple-500 outline-none" placeholder="0.0000" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-emerald-400 uppercase">Realized PnL ($)</label>
+              <input type="number" value={formData.pnl} onChange={e => setFormData({...formData, pnl: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-emerald-500 outline-none" placeholder="0.00" />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1"><label className="text-xs text-gray-500 uppercase">Strategy / Setup</label><select value={formData.setup} onChange={e => setFormData({...formData, setup: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none"><option value="">Select Setup...</option>{STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-            <div className="space-y-1"><label className="text-xs text-gray-500 uppercase">Mistake Made?</label><select value={formData.mistake} onChange={e => setFormData({...formData, mistake: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-rose-500 outline-none"><option value="">No Mistake</option>{MISTAKE_TYPES.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500 uppercase">Strategy / Setup</label>
+              <select value={formData.setup} onChange={e => setFormData({...formData, setup: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none">
+                <option value="">Select Setup...</option>
+                {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-gray-500 uppercase">Mistake Made?</label>
+              <select value={formData.mistake} onChange={e => setFormData({...formData, mistake: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-rose-500 outline-none">
+                <option value="">No Mistake</option>
+                {MISTAKE_TYPES.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -415,18 +500,49 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
             <div className="flex flex-wrap gap-2 p-2 bg-black/30 border border-white/10 rounded min-h-[40px]">
               {formData.tags.map((tag, idx) => (
                 <span key={idx} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded flex items-center gap-1">
-                  {tag} <button type="button" onClick={() => setFormData(prev => ({...prev, tags: prev.tags.filter((_, i) => i !== idx)}))}><X className="w-3 h-3"/></button>
+                  {tag} <button type="button" onClick={() => setFormData(prev => ({...prev, tags: prev.tags.filter((_, i) => i !== idx)})}><X className="w-3 h-3"/></button>
                 </span>
               ))}
               <input type="text" value={activeTagInput} onChange={e => setActiveTagInput(e.target.value)} onKeyDown={handleTagAdd} className="bg-transparent outline-none text-sm text-white flex-1 min-w-[100px]" placeholder="Add tag..." />
             </div>
           </div>
 
+          <div className="space-y-2">
+            <label className="text-xs text-gray-500 uppercase">Screenshot</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleScreenshotUpload}
+              className="hidden"
+            />
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 transition-colors text-sm disabled:opacity-50"
+              >
+                <Camera className="w-4 h-4" /> 
+                {uploading ? 'Uploading...' : (formData.screenshot_url ? 'Change Screenshot' : 'Attach Screenshot')}
+              </button>
+              {formData.screenshot_url && (
+                <img src={formData.screenshot_url} alt="Preview" className="w-16 h-16 rounded object-cover border border-white/10" />
+              )}
+            </div>
+          </div>
+
           <div className="pt-4 border-t border-white/5 flex justify-between items-center">
-            <button type="button" className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 transition-colors text-sm"><Camera className="w-4 h-4" /> Attach Screenshot</button>
+            <div className="flex items-center gap-2">
+              {screenshotFile && (
+                <span className="text-xs text-emerald-400">{screenshotFile.name}</span>
+              )}
+            </div>
             <div className="flex gap-3">
               <button type="button" onClick={onClose} className="px-4 py-2 rounded text-sm text-gray-400 hover:bg-white/5 transition-colors">Cancel</button>
-              <button type="submit" className="px-6 py-2 rounded bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-sm font-medium hover:shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-shadow flex items-center gap-2"><Save className="w-4 h-4" /> {tradeToEdit ? 'Update' : 'Save'} Trade</button>
+              <button type="submit" className="px-6 py-2 rounded bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-sm font-medium hover:shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-shadow flex items-center gap-2">
+                <Save className="w-4 h-4" /> {tradeToEdit ? 'Update' : 'Save'} Trade
+              </button>
             </div>
           </div>
         </form>
@@ -435,8 +551,21 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
   );
 };
 
-const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
+const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, trade }) => {
   if (!isOpen) return null;
+  
+  const handleDelete = async () => {
+    if (trade?.screenshot_url) {
+      try {
+        const fileName = trade.screenshot_url.split('/').pop();
+        await supabase.storage.from('screenshots').remove([fileName]);  // ✅ CHANGED TO 'screenshots'
+      } catch (error) {
+        console.error('Error deleting screenshot:', error);
+      }
+    }
+    onConfirm();
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <GlassCard className="w-full max-w-md p-6 shadow-2xl shadow-rose-500/10 border-rose-500/20">
@@ -446,7 +575,7 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
           <p className="text-sm text-gray-400">This action cannot be undone. The trade data will be permanently removed from your journal.</p>
           <div className="flex gap-3 w-full mt-4">
             <button onClick={onClose} className="flex-1 px-4 py-2 rounded text-sm text-gray-400 hover:bg-white/5 transition-colors">Cancel</button>
-            <button onClick={onConfirm} className="flex-1 px-4 py-2 rounded bg-gradient-to-r from-rose-600 to-red-600 text-white text-sm font-medium hover:shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-shadow">Delete</button>
+            <button onClick={handleDelete} className="flex-1 px-4 py-2 rounded bg-gradient-to-r from-rose-600 to-red-600 text-white text-sm font-medium hover:shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-shadow">Delete</button>
           </div>
         </div>
       </GlassCard>
@@ -457,8 +586,15 @@ const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
 const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
   const [newBalance, setNewBalance] = useState(currentBalance);
   useEffect(() => { if(isOpen) setNewBalance(currentBalance); }, [isOpen, currentBalance]);
+  
   if (!isOpen) return null;
-  const handleSubmit = (e) => { e.preventDefault(); onUpdate(parseFloat(newBalance)); onClose(); }
+  
+  const handleSubmit = (e) => { 
+    e.preventDefault(); 
+    onUpdate(parseFloat(newBalance)); 
+    onClose(); 
+  };
+  
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
       <GlassCard className="w-full max-w-sm p-6 shadow-2xl shadow-blue-500/10 border-blue-500/20">
@@ -482,16 +618,27 @@ const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
 
 const JournalList = ({ trades, onEdit, onDelete }) => {
   const [filter, setFilter] = useState('');
-  const filteredTrades = trades.filter(t => t.pair.toLowerCase().includes(filter.toLowerCase()) || t.setup.toLowerCase().includes(filter.toLowerCase()));
+  const filteredTrades = trades.filter(t => 
+    t.pair.toLowerCase().includes(filter.toLowerCase()) || 
+    t.setup.toLowerCase().includes(filter.toLowerCase())
+  );
 
   return (
     <div className="space-y-4 animate-in fade-in duration-500">
       <div className="flex justify-between items-center mb-6">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <input type="text" placeholder="Search pair, setup..." className="bg-black/30 border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm text-gray-200 focus:border-cyan-500 outline-none w-64 transition-all focus:w-80" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input 
+            type="text" 
+            placeholder="Search pair, setup..." 
+            className="bg-black/30 border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm text-gray-200 focus:border-cyan-500 outline-none w-64 transition-all focus:w-80" 
+            value={filter} 
+            onChange={(e) => setFilter(e.target.value)} 
+          />
         </div>
-        <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"><Filter className="w-4 h-4" /> Advanced Filters</button>
+        <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
+          <Filter className="w-4 h-4" /> Advanced Filters
+        </button>
       </div>
 
       <div className="overflow-x-auto">
@@ -505,6 +652,7 @@ const JournalList = ({ trades, onEdit, onDelete }) => {
                 <th className="p-4 font-medium">Outcome</th>
                 <th className="p-4 font-medium">PnL</th>
                 <th className="p-4 font-medium">Tags</th>
+                <th className="p-4 font-medium">Screenshot</th>
                 <th className="p-4 font-medium text-right">Actions</th>
               </tr>
             </thead>
@@ -519,14 +667,27 @@ const JournalList = ({ trades, onEdit, onDelete }) => {
                   <td className="p-4">
                     <span className="text-gray-300">{trade.setup}</span>
                     {trade.mistake && <div className="text-xs text-rose-400 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> {trade.mistake}</div>}
+                    {/* DISPLAY SCREENSHOT THUMBNAIL */}
+                    {trade.screenshot_url && (
+                      <img src={trade.screenshot_url} alt="Trade screenshot" className="w-16 h-16 rounded mt-2 border border-white/10 object-cover" />
+                    )}
                   </td>
                   <td className="p-4"><NeonBadge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</NeonBadge></td>
                   <td className="p-4 font-mono"><span className={trade.pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}>{trade.pnl > 0 ? '+' : ''}{trade.pnl}</span></td>
-                  <td className="p-4"><div className="flex flex-wrap gap-1">{trade.tags.map(tag => <span key={tag} className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-400">{tag}</span>)}</div></td>
+                  <td className="p-4">
+                    <div className="flex flex-wrap gap-1">
+                      {trade.tags?.map(tag => <span key={tag} className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-400">{tag}</span>)}
+                    </div>
+                  </td>
+                  <td className="p-4">
+                    {trade.screenshot_url && (
+                      <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="text-cyan-400 hover:text-cyan-300 text-xs">View</a>
+                    )}
+                  </td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button onClick={() => onEdit(trade)} className="p-2 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-white/5 transition-colors" title="Edit Trade"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => onDelete(trade.id)} className="p-2 rounded-md text-gray-400 hover:text-rose-400 hover:bg-white/5 transition-colors" title="Delete Trade"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => onDelete(trade)} className="p-2 rounded-md text-gray-400 hover:text-rose-400 hover:bg-white/5 transition-colors" title="Delete Trade"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -541,129 +702,206 @@ const JournalList = ({ trades, onEdit, onDelete }) => {
   );
 };
 
-// --- Main App Component ---
+// --- Main App Component (CLOUD-ENABLED) ---
 const App = () => {
-  const [currentView, setCurrentView] = useState(() => localStorage.getItem('muye_current_view') || 'dashboard');
-  const [trades, setTrades] = useState(() => {
-    try {
-      const savedTrades = localStorage.getItem('muye_trades');
-      return savedTrades ? JSON.parse(savedTrades) : [];
-    } catch (error) {
-      console.error("Failed to load trades from local storage:", error);
-      return [];
+  const { user, signOut } = useAuth()
+  const [currentView, setCurrentView] = useState(() => localStorage.getItem('muye_current_view') || 'dashboard')
+  const [trades, setTrades] = useState([])
+  const [startingBalance, setStartingBalance] = useState(9443)
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [tradeToEdit, setTradeToEdit] = useState(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false)
+  const [tradeToDelete, setTradeToDelete] = useState(null)
+
+  // Load trades from Supabase
+  useEffect(() => {
+    if (!user) return
+    loadTrades()
+  }, [user])
+
+  const loadTrades = async () => {
+    const { data, error } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false })
+    
+    if (error) console.error('Error loading trades:', error)
+    else setTrades(data || [])
+  }
+
+  // Load balance from Supabase
+  useEffect(() => {
+    if (!user) return
+    loadBalance()
+  }, [user])
+
+  const loadBalance = async () => {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('starting_balance')
+      .eq('user_id', user.id)
+      .single()
+    
+    if (error) console.error('Error loading balance:', error)
+    else if (data) setStartingBalance(data.starting_balance)
+  }
+
+  // Save balance to Supabase
+  const handleBalanceUpdate = async (newCurrentBalance) => {
+    const newStartingBalance = newCurrentBalance - totalPnL
+    setStartingBalance(newStartingBalance)
+    
+    await supabase
+      .from('user_settings')
+      .upsert({ user_id: user.id, starting_balance: newStartingBalance })
+  }
+
+  // Save trade to Supabase
+  const handleSaveTrade = async (tradeData) => {
+    const trade = {
+      ...tradeData,
+      user_id: user.id,
+      created_at: new Date().toISOString()
     }
-  });
-  const [startingBalance, setStartingBalance] = useState(() => {
-    try {
-      const savedBalance = localStorage.getItem('muye_balance');
-      return savedBalance ? parseFloat(savedBalance) : 9443;
-    } catch (error) {
-       console.error("Failed to load balance:", error);
-       return 9443;
-    }
-  });
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [tradeToEdit, setTradeToEdit] = useState(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [tradeToDeleteId, setTradeToDeleteId] = useState(null);
-  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false);
 
-  useEffect(() => { try { localStorage.setItem('muye_trades', JSON.stringify(trades)); } catch (e) { console.error("Failed to save trades:", e); } }, [trades]);
-  useEffect(() => { localStorage.setItem('muye_balance', startingBalance.toString()); }, [startingBalance]);
-  useEffect(() => { localStorage.setItem('muye_current_view', currentView); }, [currentView]);
-
-  const totalPnL = useMemo(() => trades.reduce((acc, t) => acc + t.pnl, 0), [trades]);
-  const currentBalance = startingBalance + totalPnL;
-
-  const handleBalanceUpdate = (newCurrentBalance) => {
-      const newStartingBalance = newCurrentBalance - totalPnL;
-      setStartingBalance(newStartingBalance);
-  };
-
-  const handleSaveTrade = (tradeData) => {
     if (tradeToEdit) {
-        setTrades(trades.map(t => t.id === tradeData.id ? tradeData : t));
-        setTradeToEdit(null);
+      const { error } = await supabase
+        .from('trades')
+        .update(trade)
+        .eq('id', tradeData.id)
+      
+      if (error) console.error('Error updating trade:', error)
     } else {
-        setTrades([tradeData, ...trades]);
+      const { error } = await supabase
+        .from('trades')
+        .insert([trade])
+      
+      if (error) console.error('Error inserting trade:', error)
     }
-    setIsModalOpen(false);
-  };
+
+    loadTrades()
+    setIsModalOpen(false)
+    setTradeToEdit(null)
+  }
+
+  const handleDeleteClick = (trade) => {
+    setTradeToDelete(trade)
+    setIsDeleteModalOpen(true)
+  }
+
+  const confirmDelete = async () => {
+    const { error: dbError } = await supabase
+      .from('trades')
+      .delete()
+      .eq('id', tradeToDelete?.id)
+    
+    if (dbError) console.error('Error deleting trade:', dbError)
+    else {
+      // Also delete screenshot from storage
+      if (tradeToDelete?.screenshot_url) {
+        try {
+          const fileName = tradeToDelete.screenshot_url.split('/').pop();
+          await supabase.storage.from('screenshots').remove([fileName]);  // ✅ CHANGED TO 'screenshots'
+        } catch (error) {
+          console.error('Error deleting screenshot:', error);
+        }
+      }
+      loadTrades()
+    }
+    
+    setIsDeleteModalOpen(false)
+    setTradeToDelete(null)
+  }
 
   const handleEditTrade = (trade) => {
-      setTradeToEdit(trade);
-      setIsModalOpen(true);
-  };
-
-  const handleDeleteClick = (id) => {
-      setTradeToDeleteId(id);
-      setIsDeleteModalOpen(true);
-  };
-
-  const confirmDelete = () => {
-      setTrades(trades.filter(t => t.id !== tradeToDeleteId));
-      setIsDeleteModalOpen(false);
-      setTradeToDeleteId(null);
-  };
+    setTradeToEdit(trade)
+    setIsModalOpen(true)
+  }
 
   const openNewTradeModal = () => {
-      setTradeToEdit(null);
-      setIsModalOpen(true);
-  };
+    setTradeToEdit(null)
+    setIsModalOpen(true)
+  }
 
   const renderContent = () => {
     switch(currentView) {
-      case 'dashboard': return <Dashboard trades={trades} />;
-      case 'journal': return <JournalList trades={trades} onEdit={handleEditTrade} onDelete={handleDeleteClick} />;
-      case 'mistakes': return <MistakeTracker trades={trades} />;
-      case 'analytics': return <Analytics trades={trades} />;
-      default: return <Dashboard trades={trades} />;
+      case 'dashboard': return <Dashboard trades={trades} />
+      case 'journal': return <JournalList trades={trades} onEdit={handleEditTrade} onDelete={handleDeleteClick} />
+      case 'mistakes': return <MistakeTracker trades={trades} />
+      case 'analytics': return <Analytics trades={trades} />
+      default: return <Dashboard trades={trades} />
     }
-  };
+  }
+
+  const totalPnL = useMemo(() => trades.reduce((acc, t) => acc + t.pnl, 0), [trades])
+  const currentBalance = startingBalance + totalPnL
+
+  // Show auth screen if not logged in
+  if (!user) return <Auth />
 
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+    <div className="min-h-screen bg-[#050505] text-gray-100 font-sans">
       <div className="flex h-screen overflow-hidden">
         <aside className="w-20 lg:w-64 border-r border-white/5 flex flex-col bg-black/40 backdrop-blur-xl z-20">
-          <div className="h-20 flex items-center justify-center lg:justify-start lg:px-8 border-b border-white/5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-[0_0_15px_rgba(6,182,212,0.5)]">
-                <span className="font-bold text-white">M</span>
-            </div>
-            <span className="hidden lg:block ml-3 font-bold text-xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-500">MUYE</span>
+          <div className="p-4 flex items-center justify-center lg:justify-start gap-2 h-20 border-b border-white/5">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center font-bold text-black text-sm">M</div>
+            <span className="hidden lg:block text-lg font-light text-white tracking-wide">MyJournal</span>
           </div>
-          <nav className="flex-1 py-8 space-y-2 px-2">
-            <button onClick={() => setCurrentView('dashboard')} className={`w-full flex items-center p-3 rounded-xl transition-all duration-300 group ${currentView === 'dashboard' ? 'bg-white/5 text-cyan-400 shadow-[0_0_10px_rgba(0,0,0,0.5)]' : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'}`}><LayoutDashboard className="w-6 h-6 lg:mr-3 group-hover:scale-110 transition-transform duration-300" /><span className="hidden lg:block text-sm font-light tracking-wide">Dashboard</span></button>
-            <button onClick={() => setCurrentView('journal')} className={`w-full flex items-center p-3 rounded-xl transition-all duration-300 group ${currentView === 'journal' ? 'bg-white/5 text-cyan-400 shadow-[0_0_10px_rgba(0,0,0,0.5)]' : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'}`}><BookOpen className="w-6 h-6 lg:mr-3 group-hover:scale-110 transition-transform duration-300" /><span className="hidden lg:block text-sm font-light tracking-wide">Journal</span></button>
-            <button onClick={() => setCurrentView('mistakes')} className={`w-full flex items-center p-3 rounded-xl transition-all duration-300 group ${currentView === 'mistakes' ? 'bg-white/5 text-rose-400 shadow-[0_0_10px_rgba(0,0,0,0.5)]' : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'}`}><AlertTriangle className="w-6 h-6 lg:mr-3 group-hover:scale-110 transition-transform duration-300" /><span className="hidden lg:block text-sm font-light tracking-wide">Mistake Lab</span></button>
-            <button onClick={() => setCurrentView('analytics')} className={`w-full flex items-center p-3 rounded-xl transition-all duration-300 group ${currentView === 'analytics' ? 'bg-white/5 text-blue-400 shadow-[0_0_10px_rgba(0,0,0,0.5)]' : 'text-gray-500 hover:text-gray-200 hover:bg-white/5'}`}><BarChart3 className="w-6 h-6 lg:mr-3 group-hover:scale-110 transition-transform duration-300" /><span className="hidden lg:block text-sm font-light tracking-wide">Analytics</span></button>
+          <nav className="p-4 flex-1">
+            <ul className="space-y-2">
+              <li>
+                <button onClick={() => setCurrentView('dashboard')} className={`w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors ${currentView === 'dashboard' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-400'}`}>
+                  <LayoutDashboard className="w-5 h-5" />
+                  <span className="hidden lg:block text-sm">Dashboard</span>
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('journal')} className={`w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors ${currentView === 'journal' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-400'}`}>
+                  <BookOpen className="w-5 h-5" />
+                  <span className="hidden lg:block text-sm">Journal</span>
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('mistakes')} className={`w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors ${currentView === 'mistakes' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-400'}`}>
+                  <AlertTriangle className="w-5 h-5" />
+                  <span className="hidden lg:block text-sm">Mistakes</span>
+                </button>
+              </li>
+              <li>
+                <button onClick={() => setCurrentView('analytics')} className={`w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors ${currentView === 'analytics' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-400'}`}>
+                  <BarChart3 className="w-5 h-5" />
+                  <span className="hidden lg:block text-sm">Analytics</span>
+                </button>
+              </li>
+            </ul>
           </nav>
-          <div className="p-4 border-t border-white/5">
-             <div className="flex items-center gap-3">
-                 <div className="w-8 h-8 rounded-full bg-gray-700 border border-gray-600 flex items-center justify-center text-gray-400"><User className="w-4 h-4" /></div>
-                 <div className="hidden lg:block">
-                     <div className="text-xs text-gray-200 font-medium">Pro Trader</div>
-                     <div className="text-[10px] text-gray-500">EUR/AUD • Risk $50</div>
-                 </div>
-             </div>
+          <div className="p-4 border-t border-white/5 mt-auto">
+            <button onClick={signOut} className="w-full flex items-center gap-2 p-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
+              <LogOut className="w-5 h-5" />
+              <span className="hidden lg:block text-sm">Sign Out</span>
+            </button>
           </div>
         </aside>
 
         <main className="flex-1 overflow-y-auto relative">
-          <div className="fixed top-0 left-0 w-full h-full pointer-events-none overflow-hidden">
-            <div className="absolute top-[-10%] left-[20%] w-[500px] h-[500px] bg-purple-900/10 rounded-full blur-[120px]" />
-            <div className="absolute bottom-[-10%] right-[10%] w-[600px] h-[600px] bg-cyan-900/10 rounded-full blur-[120px]" />
-          </div>
+          <div className="absolute inset-0 bg-gradient-radial from-cyan-500/5 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(168,85,247,0.05),transparent_50%)] pointer-events-none" />
           <header className="sticky top-0 z-10 backdrop-blur-md bg-black/20 border-b border-white/5 h-20 flex items-center justify-between px-8">
             <h1 className="text-2xl font-thin text-white tracking-tight capitalize">{currentView} View</h1>
             <div className="flex items-center gap-4">
               <div className="hidden md:block text-right mr-2">
                 <div className="text-xs text-gray-400">Current Balance</div>
                 <div className="flex items-center justify-end gap-2">
-                  <div className="text-lg font-light text-cyan-400">${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                  <div className="text-lg font-light text-cyan-400">${currentBalance.toFixed(2)}</div>
                   <button onClick={() => setIsBalanceModalOpen(true)} className="text-gray-500 hover:text-white transition-colors p-1 rounded hover:bg-white/10"><Pencil className="w-3 h-3" /></button>
                 </div>
               </div>
-              <button onClick={openNewTradeModal} className="bg-cyan-500 hover:bg-cyan-400 text-black font-medium rounded-lg px-4 py-2 flex items-center gap-2 transition-all hover:shadow-[0_0_20px_rgba(6,182,212,0.6)]"><Plus className="w-5 h-5" /><span className="hidden md:block">Log Trade</span></button>
+              <button onClick={openNewTradeModal} className="bg-cyan-500 hover:bg-cyan-400 text-black font-medium rounded-lg px-4 py-2 flex items-center gap-2 transition-all hover:shadow-[0_0_20px_rgba(6,182,212,0.6)]">
+                <Plus className="w-5 h-5" />
+                <span className="hidden md:block">Log Trade</span>
+              </button>
             </div>
           </header>
           <div className="p-8 relative z-0">{renderContent()}</div>
@@ -671,12 +909,12 @@ const App = () => {
       </div>
 
       <JournalEntry isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTrade} tradeToEdit={tradeToEdit} />
-      <DeleteConfirmationModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={confirmDelete} />
+      <DeleteConfirmationModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={confirmDelete} trade={tradeToDelete} />
       <EditBalanceModal isOpen={isBalanceModalOpen} onClose={() => setIsBalanceModalOpen(false)} currentBalance={currentBalance} onUpdate={handleBalanceUpdate} />
 
       <style dangerouslySetInnerHTML={{__html: `.recharts-cartesian-grid-horizontal line, .recharts-cartesian-grid-vertical line { stroke: #334155; opacity: 0.2; }`}} />
     </div>
-  );
-};
+  )
+}
 
 export default App;
