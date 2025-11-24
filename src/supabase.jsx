@@ -3,9 +3,11 @@ import { useState, useEffect } from 'react';
 import { Auth as SupabaseAuth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Use process.env for better compatibility with es2015 targets where import.meta might fail
+const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
+const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "";
 
+// Create a single supabase client for interacting with your database
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- Custom Hook to handle User Authentication ---
@@ -49,7 +51,7 @@ export const Auth = () => {
           supabaseClient={supabase} 
           appearance={{ theme: ThemeSupa }} 
           theme="dark"
-          providers={['google', 'github']} // Add providers you enabled in Supabase dashboard
+          providers={['google', 'github']} 
         />
       </div>
     </div>
