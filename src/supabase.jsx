@@ -3,9 +3,15 @@ import { useState, useEffect } from 'react';
 import { Auth as SupabaseAuth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 
-// Use process.env for better compatibility with es2015 targets where import.meta might fail
-const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "";
+// ⚠️ FIX: Use import.meta.env to correctly access VITE environment variables in Vite projects.
+// These variables must be defined in your .env file in the project root.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+
+// Check for missing keys and throw an error early
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Supabase URL and/or Anon Key are missing. Please check your .env file and ensure they are prefixed with VITE_.");
+}
 
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(supabaseUrl, supabaseKey);
