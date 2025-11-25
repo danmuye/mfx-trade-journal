@@ -28,7 +28,10 @@ import {
   XAxis, 
   YAxis, 
   Tooltip, 
-  ResponsiveContainer
+  ResponsiveContainer,
+    BarChart, // <-- ADDED
+    Bar,      // <-- ADDED
+    Cell      // <-- ADDED
 } from 'recharts';
 
 // Assume this import works and provides supabase client and auth hooks
@@ -61,7 +64,7 @@ const NeonBadge = ({ children, type = 'neutral' }) => {
   );
 };
 
-// --- Updated Component: PnLHeatmap ---
+// --- Dashboard Component Helpers ---
 
 const getDayData = (trades) => {
     const dailyData = {};
@@ -366,7 +369,7 @@ const Dashboard = ({ trades }) => {
   );
 };
 
-// --- Functional Placeholder: Mistakes ---
+// --- Functional Placeholder: Mistakes (No change from previous step) ---
 const Mistakes = ({ trades }) => {
     // 1. Check if the component is receiving data
     if (!trades || trades.length === 0) {
@@ -401,25 +404,127 @@ const Mistakes = ({ trades }) => {
     );
 };
 
-// --- Functional Placeholder: Analytics ---
-const Analytics = ({ trades }) => {
-    // 1. Check if the component is receiving data
-    if (!trades || trades.length === 0) {
-        return <div className="text-center py-12 text-gray-600">No trades logged yet.</div>;
-    }
+
+// --- UTILITY: Get Pair Analytics (NEW) ---
+const getPairAnalytics = (trades) => {
+    const pairPnL = trades.reduce((acc, trade) => {
+        acc[trade.pair] = (acc[trade.pair] || 0) + trade.pnl;
+        return acc;
+    }, {});
+
+    const sortedPairs = Object.entries(pairPnL)
+        .map(([pair, pnl]) => ({ pair, pnl, trades: trades.filter(t => t.pair === pair).length }))
+        .sort((a, b) => b.pnl - a.pnl);
+
+    const mostProfitable = sortedPairs.length > 0 ? sortedPairs[0] : null;
+    const worstPerforming = sortedPairs.length > 0 ? sortedPairs[sortedPairs.length - 1] : null;
+
+    // Filter top/bottom 5 for charting
+    // Include the 5 most profitable and the 5 least profitable (unique pairs only)
+    const top5 = sortedPairs.slice(0, 5);
+    const bottom5 = sortedPairs.slice(-5);
     
-    // 2. Simple rendering test (Step 3 Confirmation)
+    // Combine, remove duplicates, and sort by PnL for the bar chart
+    const combinedPairs = [...top5, ...bottom5]
+        .filter((item, index, self) => 
+            index === self.findIndex((t) => (
+                t.pair === item.pair
+            ))
+        )
+        .sort((a, b) => b.pnl - a.pnl);
+
+
+    return { mostProfitable, worstPerforming, chartData: combinedPairs };
+};
+
+
+// --- Updated Component: Analytics ---
+const Analytics = ({ trades }) => {
+    if (!trades || trades.length === 0) {
+        return <div className="text-center py-12 text-gray-600">No trades logged yet to generate analytics.</div>;
+    }
+
+    const { mostProfitable, worstPerforming, chartData } = getPairAnalytics(trades);
     const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
+    const winRate = (trades.filter(t => t.outcome === 'WIN').length / trades.length) * 100;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            <GlassCard className="p-6">
-                <h3 className="text-xl font-light text-cyan-400 mb-4">
-                    Trade Analytics
+            {/* 1. Main Stats & KPIs */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Total PnL (from placeholder) */}
+                <GlassCard className="p-4" hoverEffect>
+                    <div className="text-xs text-gray-400 uppercase">Total PnL</div>
+                    <div className={`text-2xl font-thin tracking-tight ${totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        ${totalPnL.toFixed(2)}
+                    </div>
+                </GlassCard>
+                
+                {/* Win Rate */}
+                <GlassCard className="p-4" hoverEffect>
+                    <div className="text-xs text-gray-400 uppercase">Win Rate</div>
+                    <div className="text-2xl font-thin tracking-tight text-purple-400">
+                        {winRate.toFixed(1)}%
+                    </div>
+                </GlassCard>
+
+                {/* Most Profitable Pair */}
+                <GlassCard className="p-4" hoverEffect>
+                    <div className="text-xs text-gray-400 uppercase">Most Profitable Pair</div>
+                    {mostProfitable ? (
+                        <div className="text-lg font-light text-emerald-400">
+                            {mostProfitable.pair} <span className="text-sm text-gray-400">(${mostProfitable.pnl.toFixed(0)})</span>
+                        </div>
+                    ) : (
+                        <div className="text-lg font-light text-gray-500">N/A</div>
+                    )}
+                </GlassCard>
+
+                {/* Worst Performing Pair */}
+                <GlassCard className="p-4" hoverEffect>
+                    <div className="text-xs text-gray-400 uppercase">Worst Performing Pair</div>
+                    {worstPerforming ? (
+                         <div className="text-lg font-light text-rose-400">
+                            {worstPerforming.pair} <span className="text-sm text-gray-400">(${worstPerforming.pnl.toFixed(0)})</span>
+                        </div>
+                    ) : (
+                        <div className="text-lg font-light text-gray-500">N/A</div>
+                    )}
+                </GlassCard>
+            </div>
+
+            {/* 2. Pair Performance Bar Chart */}
+            <GlassCard className="p-6 min-h-[400px]">
+                <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
+                    <span className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></span>Pair PnL Breakdown (Top & Bottom Performers)
                 </h3>
-                <p className="text-lg text-white">Total Trades Logged: <span className="font-medium">{trades.length}</span></p>
-                <p className="text-lg text-white">Aggregate PnL: <span className={totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}>${totalPnL.toFixed(2)}</span></p>
-                <p className="text-xs text-gray-500 mt-4">This section is now rendering its basic data.</p>
+                <div className="h-[300px] w-full">
+                    {chartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                                <XAxis dataKey="pair" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} 
+                                    formatter={(value, name, props) => [`$${value.toFixed(2)} (${props.payload.trades} trades)`, 'PnL']}
+                                    labelStyle={{ color: '#fff' }}
+                                />
+                                <Bar 
+                                    dataKey="pnl" 
+                                    radius={[4, 4, 0, 0]} 
+                                    isAnimationActive={true}
+                                >
+                                    {chartData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#10b981' : '#f43f5e'} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="text-gray-500 text-sm font-light text-center py-12">No pair data available yet.</div>
+                    )}
+                </div>
             </GlassCard>
         </div>
     );
