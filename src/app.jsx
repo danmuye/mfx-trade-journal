@@ -29,9 +29,9 @@ import {
   YAxis, 
   Tooltip, 
   ResponsiveContainer,
-    BarChart, // <-- ADDED
-    Bar,      // <-- ADDED
-    Cell      // <-- ADDED
+    BarChart, 
+    Bar,      
+    Cell      
 } from 'recharts';
 
 // Assume this import works and provides supabase client and auth hooks
@@ -41,6 +41,7 @@ import { supabase, useAuth, Auth } from './supabase';
 const MISTAKE_TYPES = ['FOMO', 'Revenge', 'Over-leveraging', 'Poor Execution', 'Early Exit', 'No Stop Loss'];
 const STRATEGIES = ['Break & Retest', 'Liquidity Sweep', 'Supply/Demand', 'Trend Continuation', 'Gap Fill'];
 const SESSIONS = ['Asian', 'London', 'NYC', 'Close'];
+const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 // --- Utility Components ---
 const GlassCard = ({ children, className = "", hoverEffect = false }) => (
@@ -64,7 +65,7 @@ const NeonBadge = ({ children, type = 'neutral' }) => {
   );
 };
 
-// --- Dashboard Component Helpers ---
+// --- Dashboard Component Helpers (No change) ---
 
 const getDayData = (trades) => {
     const dailyData = {};
@@ -240,8 +241,7 @@ const PnLHeatmap = ({ trades }) => {
 };
 
 
-// --- Sub-Sections ---
-
+// --- Sub-Sections (Dashboard & Mistakes components remain the same for now) ---
 const Dashboard = ({ trades }) => {
   const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
   const wins = trades.filter(t => t.outcome === 'WIN').length;
@@ -350,7 +350,7 @@ const Dashboard = ({ trades }) => {
             <div key={trade.id} className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors cursor-pointer border-b border-white/5 last:border-0">
               <div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-sm font-medium ${trade.outcome === 'WIN' ? 'text-emerald-400' : 'text-rose-400'}`}>{trade.pair}</span>
+                  <span className={`text-sm font-medium ${trade.outcome === 'Long' ? 'text-emerald-400' : 'text-rose-400'}`}>{trade.pair}</span>
                   <span className="text-xs text-gray-500 uppercase">{trade.type}</span>
                 </div>
                 <div className="text-xs text-gray-400 mt-1">{trade.date}</div>
@@ -369,7 +369,6 @@ const Dashboard = ({ trades }) => {
   );
 };
 
-// --- Functional Placeholder: Mistakes (No change from previous step) ---
 const Mistakes = ({ trades }) => {
     // 1. Check if the component is receiving data
     if (!trades || trades.length === 0) {
@@ -405,7 +404,7 @@ const Mistakes = ({ trades }) => {
 };
 
 
-// --- UTILITY: Get Pair Analytics (NEW) ---
+// --- UTILITY: Get Pair Analytics (No change) ---
 const getPairAnalytics = (trades) => {
     const pairPnL = trades.reduce((acc, trade) => {
         acc[trade.pair] = (acc[trade.pair] || 0) + trade.pnl;
@@ -419,13 +418,12 @@ const getPairAnalytics = (trades) => {
     const mostProfitable = sortedPairs.length > 0 ? sortedPairs[0] : null;
     const worstPerforming = sortedPairs.length > 0 ? sortedPairs[sortedPairs.length - 1] : null;
 
-    // Filter top/bottom 5 for charting
-    // Include the 5 most profitable and the 5 least profitable (unique pairs only)
+    // Filter top 5 and bottom 5 for charting
     const top5 = sortedPairs.slice(0, 5);
     const bottom5 = sortedPairs.slice(-5);
     
     // Combine, remove duplicates, and sort by PnL for the bar chart
-    const combinedPairs = [...top5, ...bottom5]
+    const chartData = [...top5, ...bottom5]
         .filter((item, index, self) => 
             index === self.findIndex((t) => (
                 t.pair === item.pair
@@ -434,9 +432,111 @@ const getPairAnalytics = (trades) => {
         .sort((a, b) => b.pnl - a.pnl);
 
 
-    return { mostProfitable, worstPerforming, chartData: combinedPairs };
+    return { mostProfitable, worstPerforming, chartData };
 };
 
+// --- NEW UTILITY: Get Time and Strategy Analytics ---
+const getTimeAndStrategyAnalytics = (trades) => {
+    const analytics = {
+        sessionPnL: {},
+        dayPnL: {},
+        strategyPnL: {},
+    };
+
+    // Initialize dayPnL array with all days of the week in order (Mon=0)
+    DAYS_OF_WEEK.forEach((day, index) => {
+        analytics.dayPnL[day] = { pnl: 0, trades: 0, order: index };
+    });
+
+    trades.forEach(trade => {
+        // 1. Session PnL
+        const session = trade.session || 'Unspecified';
+        analytics.sessionPnL[session] = (analytics.sessionPnL[session] || 0) + trade.pnl;
+
+        // 2. Day of Week PnL
+        // Convert 'YYYY-MM-DD' date string to a Date object.
+        // NOTE: Use UTC or add a day to account for timezone issues when parsing date-only strings
+        const tradeDate = new Date(trade.date + 'T00:00:00Z');
+        // getUTCDay() returns 0 for Sunday, 1 for Monday, etc.
+        let dayIndex = tradeDate.getUTCDay();
+        dayIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Adjust to 0 for Monday, 6 for Sunday
+        const day = DAYS_OF_WEEK[dayIndex];
+        
+        if (analytics.dayPnL[day]) {
+             analytics.dayPnL[day].pnl += trade.pnl;
+             analytics.dayPnL[day].trades += 1;
+        }
+
+        // 3. Strategy PnL
+        const strategy = trade.setup || 'Unspecified';
+        analytics.strategyPnL[strategy] = (analytics.strategyPnL[strategy] || 0) + trade.pnl;
+    });
+
+    // Format for recharts:
+    const sessionData = Object.entries(analytics.sessionPnL)
+        .map(([name, pnl]) => ({ name, pnl }))
+        .sort((a, b) => SESSIONS.indexOf(a.name) - SESSIONS.indexOf(b.name));
+
+    const dayData = Object.values(analytics.dayPnL)
+        .filter(d => d.trades > 0) // Only show days you actually traded
+        .sort((a, b) => a.order - b.order)
+        .map(d => ({ name: DAYS_OF_WEEK[d.order], pnl: d.pnl }));
+    
+    const strategyData = Object.entries(analytics.strategyPnL)
+        .map(([name, pnl]) => ({ name, pnl }))
+        .sort((a, b) => b.pnl - a.pnl);
+
+    return { sessionData, dayData, strategyData };
+};
+
+
+// --- Chart Rendering Component ---
+const PnLBarChart = ({ data, title, primaryColor = '#22d3ee', keyName = 'name', titleIcon = 'BarChart3' }) => {
+    const IconComponent = ({ name }) => {
+        switch (name) {
+            case 'BarChart3': return <BarChart3 className="w-5 h-5 text-cyan-400" />;
+            case 'CalendarDays': return <CalendarDays className="w-5 h-5 text-purple-400" />;
+            case 'BrainCircuit': return <BrainCircuit className="w-5 h-5 text-emerald-400" />;
+            default: return <div className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></div>;
+        }
+    };
+    
+    if (!data || data.length === 0) {
+        return <div className="text-gray-500 text-sm font-light text-center py-12">No data available for this chart.</div>;
+    }
+    
+    return (
+        <GlassCard className="p-6 min-h-[400px]">
+            <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
+                <IconComponent name={titleIcon} /> {title}
+            </h3>
+            <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                        <XAxis dataKey={keyName} stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val.toFixed(0)}`} />
+                        <Tooltip 
+                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} 
+                            formatter={(value) => [`$${value.toFixed(2)}`, 'Total PnL']}
+                            labelStyle={{ color: '#fff' }}
+                        />
+                        <Bar 
+                            dataKey="pnl" 
+                            radius={[4, 4, 0, 0]} 
+                            isAnimationActive={true}
+                            fill={primaryColor}
+                        >
+                            {data.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#10b981' : '#f43f5e'} />
+                            ))}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        </GlassCard>
+    );
+}
 
 // --- Updated Component: Analytics ---
 const Analytics = ({ trades }) => {
@@ -444,15 +544,16 @@ const Analytics = ({ trades }) => {
         return <div className="text-center py-12 text-gray-600">No trades logged yet to generate analytics.</div>;
     }
 
-    const { mostProfitable, worstPerforming, chartData } = getPairAnalytics(trades);
+    const { mostProfitable, worstPerforming, chartData: pairChartData } = getPairAnalytics(trades);
+    const { sessionData, dayData, strategyData } = getTimeAndStrategyAnalytics(trades);
+    
     const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
     const winRate = (trades.filter(t => t.outcome === 'WIN').length / trades.length) * 100;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* 1. Main Stats & KPIs */}
+            {/* 1. Main Stats & KPIs (No change) */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                {/* Total PnL (from placeholder) */}
                 <GlassCard className="p-4" hoverEffect>
                     <div className="text-xs text-gray-400 uppercase">Total PnL</div>
                     <div className={`text-2xl font-thin tracking-tight ${totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -460,7 +561,6 @@ const Analytics = ({ trades }) => {
                     </div>
                 </GlassCard>
                 
-                {/* Win Rate */}
                 <GlassCard className="p-4" hoverEffect>
                     <div className="text-xs text-gray-400 uppercase">Win Rate</div>
                     <div className="text-2xl font-thin tracking-tight text-purple-400">
@@ -468,7 +568,6 @@ const Analytics = ({ trades }) => {
                     </div>
                 </GlassCard>
 
-                {/* Most Profitable Pair */}
                 <GlassCard className="p-4" hoverEffect>
                     <div className="text-xs text-gray-400 uppercase">Most Profitable Pair</div>
                     {mostProfitable ? (
@@ -480,7 +579,6 @@ const Analytics = ({ trades }) => {
                     )}
                 </GlassCard>
 
-                {/* Worst Performing Pair */}
                 <GlassCard className="p-4" hoverEffect>
                     <div className="text-xs text-gray-400 uppercase">Worst Performing Pair</div>
                     {worstPerforming ? (
@@ -493,39 +591,40 @@ const Analytics = ({ trades }) => {
                 </GlassCard>
             </div>
 
-            {/* 2. Pair Performance Bar Chart */}
-            <GlassCard className="p-6 min-h-[400px]">
-                <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
-                    <span className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></span>Pair PnL Breakdown (Top & Bottom Performers)
-                </h3>
-                <div className="h-[300px] w-full">
-                    {chartData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                                <XAxis dataKey="pair" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                                <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                                <Tooltip 
-                                    contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} 
-                                    formatter={(value, name, props) => [`$${value.toFixed(2)} (${props.payload.trades} trades)`, 'PnL']}
-                                    labelStyle={{ color: '#fff' }}
-                                />
-                                <Bar 
-                                    dataKey="pnl" 
-                                    radius={[4, 4, 0, 0]} 
-                                    isAnimationActive={true}
-                                >
-                                    {chartData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#10b981' : '#f43f5e'} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    ) : (
-                        <div className="text-gray-500 text-sm font-light text-center py-12">No pair data available yet.</div>
-                    )}
-                </div>
-            </GlassCard>
+            {/* 2. Charts (All New and Updated) */}
+            
+            {/* Pair Performance */}
+            <PnLBarChart 
+                data={pairChartData} 
+                title="Pair PnL Breakdown (Top & Bottom Performers)"
+                titleIcon="BarChart3"
+            />
+            
+            {/* Time-Based Analytics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <PnLBarChart 
+                    data={sessionData} 
+                    title="PnL by Trading Session"
+                    titleIcon="CalendarDays"
+                    primaryColor="#f472b6" // Pink color
+                />
+                
+                <PnLBarChart 
+                    data={dayData} 
+                    title="PnL by Day of the Week"
+                    titleIcon="CalendarDays"
+                    primaryColor="#a78bfa" // Purple color
+                />
+            </div>
+            
+            {/* Strategy Performance */}
+            <PnLBarChart 
+                data={strategyData} 
+                title="PnL by Strategy / Setup"
+                titleIcon="BrainCircuit"
+                primaryColor="#10b981" // Emerald color
+            />
+
         </div>
     );
 };
@@ -599,7 +698,7 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
     setScreenshotFile(file);
 
     try {
-      const fileExt = file.name.split('.').pop();
+      const fileExt = file.name.split('.pop')
       const fileName = `${user.id}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `${fileName}`;
 
