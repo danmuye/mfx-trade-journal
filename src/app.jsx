@@ -19,7 +19,8 @@ import {
   LogOut,
     ChevronLeft,
     ChevronRight,
-    CalendarDays
+    CalendarDays,
+    HeartHandshake 
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -31,7 +32,11 @@ import {
   ResponsiveContainer,
     BarChart, 
     Bar,      
-    Cell      
+    Cell,      
+    PieChart, 
+    Pie, 
+    Legend,
+    Sector
 } from 'recharts';
 
 // Assume this import works and provides supabase client and auth hooks
@@ -241,7 +246,7 @@ const PnLHeatmap = ({ trades }) => {
 };
 
 
-// --- Sub-Sections (Dashboard & Mistakes components remain the same for now) ---
+// --- Sub-Sections (Dashboard component remains the same for now) ---
 const Dashboard = ({ trades }) => {
   const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
   const wins = trades.filter(t => t.outcome === 'WIN').length;
@@ -369,34 +374,134 @@ const Dashboard = ({ trades }) => {
   );
 };
 
-const Mistakes = ({ trades }) => {
-    // 1. Check if the component is receiving data
+// --- UTILITY: Get Mistake Analytics ---
+const getMistakeAnalytics = (trades) => {
+    const mistakeTrades = trades.filter(t => t.mistake && t.mistake.length > 0);
+    const totalMistakePnL = mistakeTrades.reduce((acc, t) => acc + t.pnl, 0);
+
+    const frequencyMap = mistakeTrades.reduce((acc, t) => {
+        acc[t.mistake] = (acc[t.mistake] || 0) + 1;
+        return acc;
+    }, {});
+
+    const frequencyData = Object.entries(frequencyMap)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+
+    return { totalMistakePnL, frequencyData, mistakeTrades };
+};
+
+// --- Component: Mistakes ---
+const Mistakes = ({ trades, onEdit }) => {
     if (!trades || trades.length === 0) {
         return <div className="text-center py-12 text-gray-600">No trades logged yet.</div>;
     }
-
-    // 2. Filter for trades where a mistake was logged (mistake field is NOT null or empty string)
-    const mistakeTrades = trades.filter(t => t.mistake && t.mistake.length > 0);
     
-    // 3. Simple rendering test (Step 3 Confirmation)
+    const { totalMistakePnL, frequencyData, mistakeTrades } = getMistakeAnalytics(trades);
+
+    const COLORS = ['#f43f5e', '#a78bfa', '#fde047', '#34d399', '#f97316', '#ef4444'];
+    const RADIAN = Math.PI / 180;
+    const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
+        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+        return (
+            <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs font-medium">
+                {`${(percent * 100).toFixed(0)}%`}
+            </text>
+        );
+    };
+
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
+            <h2 className="text-3xl font-thin text-white tracking-wide flex items-center gap-2">
+                <AlertTriangle className="w-6 h-6 text-rose-400" /> Behavioral Audit
+            </h2>
+            <p className="text-sm text-gray-400">Review the financial impact and frequency of your recurring trading mistakes to implement corrective measures.</p>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* PnL Impact KPI */}
+                <GlassCard className="p-6 col-span-1 border-rose-500/30 shadow-lg shadow-rose-500/10">
+                    <div className="text-sm text-gray-400 uppercase tracking-wider mb-2">Total PnL Lost Due to Mistakes</div>
+                    <div className={`text-4xl font-bold tracking-tight ${totalMistakePnL <= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {totalMistakePnL > 0 ? '+' : ''}${totalMistakePnL.toFixed(2)}
+                    </div>
+                    <div className="mt-2 text-xs text-gray-500">This total is based only on trades with a logged mistake.</div>
+                </GlassCard>
+
+                {/* Mistake Frequency Chart */}
+                <GlassCard className="p-6 lg:col-span-2 min-h-[400px]">
+                    <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
+                        <span className="w-1 h-6 bg-gradient-to-b from-rose-400 to-orange-500 rounded-full"></span> Mistake Frequency Breakdown
+                    </h3>
+                    <div className="h-[300px] w-full flex justify-center items-center">
+                        {frequencyData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie
+                                        data={frequencyData}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={80}
+                                        outerRadius={120}
+                                        fill="#8884d8"
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        labelLine={false}
+                                        label={renderCustomizedLabel}
+                                    >
+                                        {frequencyData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip 
+                                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} 
+                                        formatter={(value, name) => [value, name]}
+                                        labelStyle={{ color: '#fff' }}
+                                    />
+                                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ padding: '20px 0 0 0' }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="text-gray-500 text-sm font-light">No mistakes logged yet.</div>
+                        )}
+                    </div>
+                </GlassCard>
+            </div>
+
+            {/* Mistake Review List */}
             <GlassCard className="p-6">
-                <h3 className="text-xl font-light text-rose-400 mb-4">
-                    Mistake Tracker
+                <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
+                    <HeartHandshake className="w-5 h-5 text-emerald-400" /> Trade Review and Corrective Actions
                 </h3>
-                {mistakeTrades.length === 0 ? (
-                    <div className="text-gray-500">You're trading perfectly! No mistakes logged on recent trades.</div>
-                ) : (
-                    <div className="space-y-3">
-                        {mistakeTrades.slice(0, 5).map(trade => (
-                            <div key={trade.id} className="p-3 bg-rose-900/10 border border-rose-500/20 rounded flex justify-between items-center">
-                                <span className="text-sm text-white">{trade.pair} on {trade.date}</span>
-                                <NeonBadge type="loss">{trade.mistake}</NeonBadge>
+                {mistakeTrades.length > 0 ? (
+                    <div className="space-y-4">
+                        {mistakeTrades.map(trade => (
+                            <div key={trade.id} className="p-4 bg-gray-800/50 border border-rose-500/20 rounded-lg shadow-md hover:bg-gray-700/50 transition-colors">
+                                <div className="flex justify-between items-start mb-2 border-b border-white/5 pb-2">
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-sm font-medium text-white">{trade.pair} <span className="text-gray-500 text-xs">on {trade.date}</span></div>
+                                        <NeonBadge type="loss">{trade.mistake}</NeonBadge>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`text-lg font-bold ${trade.pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                            {trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                                        </div>
+                                        <button onClick={() => onEdit(trade)} className="text-gray-500 hover:text-cyan-400 transition-colors p-1 rounded-full hover:bg-white/5" title="Review Trade">
+                                            <Pencil className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="mt-2">
+                                    <p className="text-xs text-gray-500 uppercase font-medium">Learnings/Corrective Action:</p>
+                                    <p className="text-sm text-gray-300 italic mt-1">{trade.learnings || "No action recorded yet. Click the pencil icon to log your learning."}</p>
+                                </div>
                             </div>
                         ))}
-                        <p className="text-xs text-gray-500 mt-4">Successfully rendered {mistakeTrades.length} mistake trades.</p>
                     </div>
+                ) : (
+                    <div className="text-gray-500 text-sm py-8 text-center">Excellent work! No trades logged with a mistake yet.</div>
                 )}
             </GlassCard>
         </div>
@@ -435,7 +540,7 @@ const getPairAnalytics = (trades) => {
     return { mostProfitable, worstPerforming, chartData };
 };
 
-// --- NEW UTILITY: Get Time and Strategy Analytics ---
+// --- UTILITY: Get Time and Strategy Analytics (No change) ---
 const getTimeAndStrategyAnalytics = (trades) => {
     const analytics = {
         sessionPnL: {},
@@ -490,7 +595,7 @@ const getTimeAndStrategyAnalytics = (trades) => {
 };
 
 
-// --- Chart Rendering Component ---
+// --- Chart Rendering Component (No change) ---
 const PnLBarChart = ({ data, title, primaryColor = '#22d3ee', keyName = 'name', titleIcon = 'BarChart3' }) => {
     const IconComponent = ({ name }) => {
         switch (name) {
@@ -538,7 +643,7 @@ const PnLBarChart = ({ data, title, primaryColor = '#22d3ee', keyName = 'name', 
     );
 }
 
-// --- Updated Component: Analytics ---
+// --- Component: Analytics (No change) ---
 const Analytics = ({ trades }) => {
     if (!trades || trades.length === 0) {
         return <div className="text-center py-12 text-gray-600">No trades logged yet to generate analytics.</div>;
@@ -640,9 +745,10 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
     exit: '',
     pnl: '',
     mistake: '',
+        learnings: '', // NEW FIELD
     notes: '',
     tags: [],
-    session: '', // Initialized to empty string
+    session: '', 
     date: new Date().toISOString().split('T')[0],
     screenshot_url: null
   });
@@ -660,8 +766,9 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
           entry: tradeToEdit.entry.toString(),
           exit: tradeToEdit.exit.toString(),
           mistake: tradeToEdit.mistake || '',
+                    learnings: tradeToEdit.learnings || '', // Load new field
           setup: tradeToEdit.setup || '',
-          session: tradeToEdit.session || '', // Ensure session is loaded correctly
+          session: tradeToEdit.session || '',
           screenshot_url: tradeToEdit.screenshot_url || null
         });
         setScreenshotFile(null);
@@ -674,6 +781,7 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
           exit: '',
           pnl: '',
           mistake: '',
+                    learnings: '', // Reset new field
           notes: '',
           tags: [],
           session: '',
@@ -698,7 +806,7 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
     setScreenshotFile(file);
 
     try {
-      const fileExt = file.name.split('.pop')
+      const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `${fileName}`;
 
@@ -740,14 +848,14 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
     const entryVal = parseFloat(formData.entry);
     const exitVal = parseFloat(formData.exit);
         
-        // --- FIX: Convert empty strings to null for optional database fields ---
+        // Convert empty strings to null for optional database fields
     const tradeData = {
         ...formData,
-                // These fields are optional and must be null if empty string
                 mistake: formData.mistake || null,
                 setup: formData.setup || null,
                 session: formData.session || null, 
-                notes: formData.notes || null, // Also good practice for notes
+                notes: formData.notes || null, 
+                learnings: formData.learnings || null, // NEW FIELD
                 
         pnl: isNaN(pnlVal) ? 0 : pnlVal,
         entry: isNaN(entryVal) ? 0 : entryVal,
@@ -835,6 +943,19 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
               </select>
             </div>
           </div>
+                    
+                    {/* NEW FIELD: Corrective Action */}
+                    <div className="space-y-2">
+            <label className="text-xs text-gray-500 uppercase">Learnings / Corrective Action</label>
+            <textarea 
+                            value={formData.learnings} 
+                            onChange={e => setFormData({...formData, learnings: e.target.value})} 
+                            rows="2" 
+                            className="w-full bg-black/30 border border-white/10 rounded p-3 text-sm text-white focus:border-emerald-500 outline-none" 
+                            placeholder="What rule will you implement to prevent this mistake in the future? (e.g., 'Must wait for candle close on 4H before entry')"
+                        ></textarea>
+          </div>
+                    {/* End NEW FIELD */}
 
           <div className="space-y-2">
             <label className="text-xs text-gray-500 uppercase">Tags (Press Enter)</label>
@@ -1197,7 +1318,8 @@ const App = () => {
     switch(currentView) {
       case 'dashboard': return <Dashboard trades={trades} />
       case 'journal': return <JournalList trades={trades} onEdit={handleEditTrade} onDelete={handleDeleteClick} />
-      case 'mistakes': return <Mistakes trades={trades} />
+      // Pass handleEditTrade so the mistake review list can link back to the entry modal
+      case 'mistakes': return <Mistakes trades={trades} onEdit={handleEditTrade} /> 
       case 'analytics': return <Analytics trades={trades} />
       default: return <Dashboard trades={trades} />
     }
