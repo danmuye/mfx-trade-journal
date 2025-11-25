@@ -220,10 +220,9 @@ const PnLHeatmap = ({ trades }) => {
                                     </div>
                                 </>
                             )}
-                            {/* Display "No Trades" only for current month days with no activity */}
+                            {/* Display the day number only for current month days with no activity */}
                             {isCurrentMonth && dayData.tradeCount === 0 && (
                                 <div className="text-[10px] text-gray-500 mt-1"></div> 
-                                // Keeping the block, but removing the "No Trades" text for a cleaner look, only the date remains visible
                             )}
                         </div>
                     );
@@ -383,6 +382,7 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
     mistake: '',
     notes: '',
     tags: [],
+    session: '', // Initialized to empty string
     date: new Date().toISOString().split('T')[0],
     screenshot_url: null
   });
@@ -400,6 +400,8 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
           entry: tradeToEdit.entry.toString(),
           exit: tradeToEdit.exit.toString(),
           mistake: tradeToEdit.mistake || '',
+          setup: tradeToEdit.setup || '',
+          session: tradeToEdit.session || '', // Ensure session is loaded correctly
           screenshot_url: tradeToEdit.screenshot_url || null
         });
         setScreenshotFile(null);
@@ -414,6 +416,7 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
           mistake: '',
           notes: '',
           tags: [],
+          session: '',
           date: new Date().toISOString().split('T')[0],
           screenshot_url: null
         });
@@ -476,9 +479,16 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
     const pnlVal = parseFloat(formData.pnl);
     const entryVal = parseFloat(formData.entry);
     const exitVal = parseFloat(formData.exit);
-
+        
+        // --- FIX: Convert empty strings to null for optional database fields ---
     const tradeData = {
         ...formData,
+                // These fields are optional and must be null if empty string
+                mistake: formData.mistake || null,
+                setup: formData.setup || null,
+                session: formData.session || null, 
+                notes: formData.notes || null, // Also good practice for notes
+                
         pnl: isNaN(pnlVal) ? 0 : pnlVal,
         entry: isNaN(entryVal) ? 0 : entryVal,
         exit: isNaN(exitVal) ? 0 : exitVal,
@@ -690,7 +700,7 @@ const JournalList = ({ trades, onEdit, onDelete }) => {
   const [filter, setFilter] = useState('');
   const filteredTrades = trades.filter(t => 
     t.pair.toLowerCase().includes(filter.toLowerCase()) ||  
-    t.setup.toLowerCase().includes(filter.toLowerCase())
+    t.setup?.toLowerCase().includes(filter.toLowerCase()) // Added optional chaining for setup
   );
 
   return (
@@ -735,7 +745,7 @@ const JournalList = ({ trades, onEdit, onDelete }) => {
                     <span className={`text-xs ${trade.type === 'Long' ? 'text-emerald-400' : 'text-rose-400'}`}>{trade.type}</span>
                   </td>
                   <td className="p-4">
-                    <span className="text-gray-300">{trade.setup}</span>
+                    <span className="text-gray-300">{trade.setup || 'N/A'}</span>
                     {trade.mistake && <div className="text-xs text-rose-400 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> {trade.mistake}</div>}
                   </td>
                   <td className="p-4"><NeonBadge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</NeonBadge></td>
@@ -843,6 +853,7 @@ const App = () => {
 
   // Save balance to Supabase
   const handleBalanceUpdate = async (newCurrentBalance) => {
+    const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0); // Recalculate PnL
     const newStartingBalance = newCurrentBalance - totalPnL
     setStartingBalance(newStartingBalance)
     
