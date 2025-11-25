@@ -16,7 +16,10 @@ import {
   MoreHorizontal,
   Pencil,
   Trash2,
-  LogOut
+  LogOut,
+    ChevronLeft,
+    ChevronRight,
+    CalendarDays
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -60,73 +63,74 @@ const NeonBadge = ({ children, type = 'neutral' }) => {
 
 // --- Updated Component: PnLHeatmap ---
 
-const getDayPnL = (trades) => {
-    const dailyPnL = {};
-    const tradeDates = new Set();
+const getDayData = (trades) => {
+    const dailyData = {};
     
-    // Group trades by date, sum PnL, and track all dates with trades
+    // Group trades by date, sum PnL, and count trades
     trades.forEach(trade => {
-        const dateKey = trade.date; 
-        tradeDates.add(dateKey);
-        if (!dailyPnL[dateKey]) {
-            dailyPnL[dateKey] = 0;
+        const dateKey = trade.date; // Assuming trade.date is 'YYYY-MM-DD'
+        if (!dailyData[dateKey]) {
+            dailyData[dateKey] = { pnl: 0, tradeCount: 0 };
         }
-        dailyPnL[dateKey] += trade.pnl;
+        dailyData[dateKey].pnl += trade.pnl;
+        dailyData[dateKey].tradeCount += 1;
     });
 
-    const maxAbsPnL = Math.max(...Object.values(dailyPnL).map(Math.abs), 1);
+    const allPnLs = Object.values(dailyData).map(data => data.pnl);
+    const maxAbsPnL = allPnLs.length > 0 ? Math.max(...allPnLs.map(Math.abs), 1) : 1;
 
-    return { dailyPnL, maxAbsPnL, tradeDates };
+    return { dailyData, maxAbsPnL };
 };
 
 const PnLHeatmap = ({ trades }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     
-    const { dailyPnL, maxAbsPnL, tradeDates } = useMemo(() => getDayPnL(trades), [trades]);
+    const { dailyData, maxAbsPnL } = useMemo(() => getDayData(trades), [trades]);
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
 
     const startOfMonth = new Date(year, month, 1);
-    const endOfMonth = new Date(year, month + 1, 0);
-    const numDays = endOfMonth.getDate();
+    const endOfMonth = new Date(year, month + 1, 0); // Last day of the current month
+    const prevMonthEnd = new Date(year, month, 0); // Last day of the previous month
 
-    const startingDay = startOfMonth.getDay(); 
-    const dayOffset = startingDay === 0 ? 6 : startingDay - 1; // Mon=0, Sun=6
+    const startingDayOfWeek = startOfMonth.getDay(); // 0 for Sunday, 1 for Monday, etc.
+    const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1; // Adjust to Monday = 0
 
     const weeks = [];
-    let currentWeek = Array(dayOffset).fill(null);
+    let currentWeek = [];
 
-    for (let day = 1; day <= numDays; day++) {
+    // Add days from the previous month for padding
+    for (let i = dayOffset; i > 0; i--) {
+        const day = prevMonthEnd.getDate() - i + 1;
+        currentWeek.push({ day, isFiller: true });
+    }
+
+    // Add days for the current month
+    for (let day = 1; day <= endOfMonth.getDate(); day++) {
         const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const pnl = dailyPnL[dateKey] || 0;
+        const data = dailyData[dateKey];
         
-        // Skip days that are NOT present in the trade log (no visual cell)
-        if (!tradeDates.has(dateKey)) {
-             currentWeek.push(null); 
-             if (currentWeek.length === 7) {
-                 weeks.push(currentWeek);
-                 currentWeek = [];
-             }
-             continue; 
-        }
+        let bgColorClass = 'bg-gray-900/40 border-gray-800'; // Default for no trades logged
 
-        // --- Color Calculation (Only for days with trades) ---
-        const intensity = Math.min(1, Math.abs(pnl) / maxAbsPnL);
-        let bgColor = 'bg-gray-800/50';
-        
-        if (pnl > 0) {
-            const shade = Math.round(intensity * 6) * 100 + 200; 
-            bgColor = `bg-emerald-${shade}/80`;
-        } else if (pnl < 0) {
-            const shade = Math.round(intensity * 6) * 100 + 200; 
-            bgColor = `bg-rose-${shade}/80`;
-        } else if (pnl === 0) {
-             bgColor = 'bg-cyan-500/20'; 
+        if (data && data.tradeCount > 0) { // Check for trade count to ensure it's an "active" day
+            const pnl = data.pnl;
+            const intensity = Math.min(1, Math.abs(pnl) / maxAbsPnL);
+            
+            if (pnl > 0) {
+                const shade = Math.round(intensity * 6) * 100 + 200; // Emerald from 200 to 800
+                bgColorClass = `bg-emerald-${shade}/80 border-emerald-500/20`;
+            } else if (pnl < 0) {
+                const shade = Math.round(intensity * 6) * 100 + 200; // Rose from 200 to 800
+                bgColorClass = `bg-rose-${shade}/80 border-rose-500/20`;
+            } else if (pnl === 0) {
+                bgColorClass = 'bg-cyan-800/50 border-cyan-500/20'; // Break-even
+            }
+            currentWeek.push({ day, pnl, tradeCount: data.tradeCount, bgColorClass, dateKey, isFiller: false });
+        } else {
+            // Day in the current month with no trades logged
+            currentWeek.push({ day, pnl: 0, tradeCount: 0, isFiller: false, bgColorClass: 'bg-gray-800/50 border-gray-700/50' }); 
         }
-        // -----------------------------------------------------
-
-        currentWeek.push({ day, pnl, bgColor, dateKey });
 
         if (currentWeek.length === 7) {
             weeks.push(currentWeek);
@@ -134,8 +138,13 @@ const PnLHeatmap = ({ trades }) => {
         }
     }
 
-    if (currentWeek.length > 0) {
-        currentWeek = currentWeek.concat(Array(7 - currentWeek.length).fill(null));
+    // Add days from the next month for padding
+    let nextMonthDay = 1;
+    while (currentWeek.length < 7 && currentWeek.length > 0) {
+        currentWeek.push({ day: nextMonthDay, isFiller: true });
+        nextMonthDay++;
+    }
+    if (currentWeek.length > 0) { // Push any remaining partial week
         weeks.push(currentWeek);
     }
     
@@ -143,46 +152,86 @@ const PnLHeatmap = ({ trades }) => {
         setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
     };
 
-    const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const goToToday = () => {
+        setCurrentDate(new Date());
+    };
+
+    const monthYear = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     return (
-        <div className="flex flex-col h-full justify-between">
-            <div className="flex justify-between items-center mb-4">
-                <button onClick={() => changeMonth(-1)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-xl font-thin">&lt;</button>
-                <span className="text-white font-light text-base tracking-wide">{monthName}</span>
-                <button onClick={() => changeMonth(1)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-xl font-thin">&gt;</button>
+        <div className="flex flex-col h-full">
+            <div className="flex justify-between items-center mb-4 text-white font-light">
+                <div className="flex items-center gap-2">
+                    <button onClick={goToToday} className="flex items-center gap-1 px-3 py-1 rounded bg-white/5 border border-white/10 text-xs text-gray-300 hover:bg-cyan-500/20 hover:text-cyan-400 transition-colors">
+                        <CalendarDays className="w-4 h-4" /> Today
+                    </button>
+                    <span className="text-gray-500 text-lg">|</span>
+                    <div className="flex items-center gap-1 text-lg">
+                        <button onClick={() => changeMonth(-1)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-xl font-thin">
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
+                        <span className="text-white font-light text-base tracking-wide min-w-[120px] text-center">{monthYear}</span>
+                        <button onClick={() => changeMonth(1)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-xl font-thin">
+                            <ChevronRight className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {/* Day Headers (Mon - Sun) */}
-            <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-gray-500 mb-2">
+            <div className="grid grid-cols-7 gap-2 text-center text-xs font-medium text-gray-500 mb-2">
                 {dayNames.map(d => <div key={d}>{d}</div>)}
             </div>
 
             {/* Calendar Grid */}
-            <div className="flex-1 grid grid-cols-7 gap-1">
+            <div className="flex-1 grid grid-cols-7 gap-2">
                 {weeks.flat().map((dayData, index) => {
-                    if (dayData) {
-                        return (
-                            <div 
-                                key={index} 
-                                className={`aspect-square rounded flex flex-col items-center justify-center text-xs font-light cursor-pointer relative group transition-all duration-100 ${dayData.bgColor} ${dayData.pnl !== 0 ? 'hover:scale-[1.05] hover:shadow-lg' : ''}`}
-                            >
-                                <span className="text-gray-200 text-sm font-medium">{dayData.day}</span>
-                                <div className={`text-[10px] mt-0.5 ${dayData.pnl > 0 ? 'text-emerald-300' : (dayData.pnl < 0 ? 'text-rose-300' : 'text-cyan-300')}`}>
-                                    {/* Permanently show PnL */}
-                                    {dayData.pnl > 0 ? `+$${dayData.pnl.toFixed(0)}` : (dayData.pnl < 0 ? `-$${Math.abs(dayData.pnl).toFixed(0)}` : 'B/E')}
-                                </div>
-                            </div>
-                        );
-                    }
-                    // Empty cell for padding AND for days with no trades
-                    return <div key={index} className="aspect-square"></div>; 
+                    if (!dayData) return <div key={index} className="aspect-square"></div>; 
+
+                    const isCurrentMonth = !dayData.isFiller;
+                    const pnlDisplay = dayData.pnl > 0 ? `+$${dayData.pnl.toFixed(0)}` : `-$${Math.abs(dayData.pnl).toFixed(0)}`;
+                    const tradeCountDisplay = `${dayData.tradeCount} Trades`;
+                    
+                    const cellClasses = `aspect-square rounded-lg flex flex-col items-center justify-center p-2 text-center transition-all duration-100 border ` + 
+                                        (dayData.isFiller 
+                                            ? 'bg-gray-900/30 text-gray-600 border-transparent' // Filler days (prev/next month)
+                                            : dayData.bgColorClass || 'bg-gray-800/50 border-gray-700/50' // Default for no trades in current month
+                                        ) +
+                                        (dayData.tradeCount > 0 ? ' hover:scale-[1.02] hover:shadow-lg' : ''); 
+                    
+                    // Specific text colors for PnL/Trade counts
+                    let pnlTextColor = 'text-white';
+                    if (dayData.pnl > 0) pnlTextColor = 'text-emerald-200';
+                    if (dayData.pnl < 0) pnlTextColor = 'text-rose-200';
+                    if (dayData.pnl === 0 && dayData.tradeCount > 0) pnlTextColor = 'text-cyan-200'; // Break even
+                    
+                    return (
+                        <div key={index} className={cellClasses}>
+                            <span className={`text-sm font-medium ${dayData.isFiller ? 'text-gray-600' : 'text-gray-300'}`}>{dayData.day}</span>
+                            {/* Display PnL and Trade Count only if there was trading activity */}
+                            {isCurrentMonth && dayData.tradeCount > 0 && (
+                                <>
+                                    <div className={`mt-1 text-sm font-light ${pnlTextColor}`}>
+                                        {dayData.pnl === 0 ? 'B/E' : pnlDisplay}
+                                    </div>
+                                    <div className="text-[10px] text-gray-400">
+                                        {tradeCountDisplay}
+                                    </div>
+                                </>
+                            )}
+                            {/* Display "No Trades" only for current month days with no activity */}
+                            {isCurrentMonth && dayData.tradeCount === 0 && (
+                                <div className="text-[10px] text-gray-500 mt-1"></div> 
+                                // Keeping the block, but removing the "No Trades" text for a cleaner look, only the date remains visible
+                            )}
+                        </div>
+                    );
                 })}
             </div>
             
             <div className="mt-4 text-center text-xs text-gray-500 space-x-3">
-                <NeonBadge type="win">Profit</NeonBadge> <NeonBadge type="loss">Loss</NeonBadge> <NeonBadge type="neutral">Break-Even</NeonBadge>
+                <NeonBadge type="win">Profit</NeonBadge> <NeonBadge type="loss">Loss</NeonBadge> <NeonBadge type="neutral">Break-Even</NeonBadge> <span className="px-2 py-1 rounded text-xs font-medium border border-gray-700/50 bg-gray-800/50 text-gray-400">No Trades Logged</span>
             </div>
         </div>
     );
@@ -252,9 +301,17 @@ const Dashboard = ({ trades }) => {
           <div className="mt-2 text-xs text-gray-500 font-light">Per trade value</div>
         </GlassCard>
       </div>
+            
+            {/* PnL Heatmap (Now full width above Equity Curve) */}
+            <GlassCard className="p-6">
+                <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
+                    <span className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></span>Monthly PnL Heatmap
+                </h3>
+                <PnLHeatmap trades={trades} /> 
+            </GlassCard>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <GlassCard className="lg:col-span-2 p-6 min-h-[400px]">
+      <div className="grid grid-cols-1 gap-6"> {/* Simplified to 1 column for Equity Curve */}
+        <GlassCard className="p-6 min-h-[400px]"> 
           <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
             <span className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-purple-500 rounded-full"></span>Equity Curve
           </h3>
@@ -279,14 +336,6 @@ const Dashboard = ({ trades }) => {
               <div className="text-gray-500 text-sm font-light">No trade data available yet.</div>
             )}
           </div>
-        </GlassCard>
-
-        <GlassCard className="p-6">
-          <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
-            <span className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></span>Monthly PnL Heatmap
-          </h3>
-          {/* PnL HEATMAP INTEGRATION */}
-          <PnLHeatmap trades={trades} /> 
         </GlassCard>
       </div>
       
