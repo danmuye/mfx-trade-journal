@@ -366,8 +366,64 @@ const Dashboard = ({ trades }) => {
   );
 };
 
-const Mistakes = ({ trades }) => { /* ... MistakeTracker component body ... */ return null; };
-const Analytics = ({ trades }) => { /* ... Analytics component body ... */ return null; };
+// --- Functional Placeholder: Mistakes ---
+const Mistakes = ({ trades }) => {
+    // 1. Check if the component is receiving data
+    if (!trades || trades.length === 0) {
+        return <div className="text-center py-12 text-gray-600">No trades logged yet.</div>;
+    }
+
+    // 2. Filter for trades where a mistake was logged (mistake field is NOT null or empty string)
+    const mistakeTrades = trades.filter(t => t.mistake && t.mistake.length > 0);
+    
+    // 3. Simple rendering test (Step 3 Confirmation)
+    return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+            <GlassCard className="p-6">
+                <h3 className="text-xl font-light text-rose-400 mb-4">
+                    Mistake Tracker
+                </h3>
+                {mistakeTrades.length === 0 ? (
+                    <div className="text-gray-500">You're trading perfectly! No mistakes logged on recent trades.</div>
+                ) : (
+                    <div className="space-y-3">
+                        {mistakeTrades.slice(0, 5).map(trade => (
+                            <div key={trade.id} className="p-3 bg-rose-900/10 border border-rose-500/20 rounded flex justify-between items-center">
+                                <span className="text-sm text-white">{trade.pair} on {trade.date}</span>
+                                <NeonBadge type="loss">{trade.mistake}</NeonBadge>
+                            </div>
+                        ))}
+                        <p className="text-xs text-gray-500 mt-4">Successfully rendered {mistakeTrades.length} mistake trades.</p>
+                    </div>
+                )}
+            </GlassCard>
+        </div>
+    );
+};
+
+// --- Functional Placeholder: Analytics ---
+const Analytics = ({ trades }) => {
+    // 1. Check if the component is receiving data
+    if (!trades || trades.length === 0) {
+        return <div className="text-center py-12 text-gray-600">No trades logged yet.</div>;
+    }
+    
+    // 2. Simple rendering test (Step 3 Confirmation)
+    const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
+
+    return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+            <GlassCard className="p-6">
+                <h3 className="text-xl font-light text-cyan-400 mb-4">
+                    Trade Analytics
+                </h3>
+                <p className="text-lg text-white">Total Trades Logged: <span className="font-medium">{trades.length}</span></p>
+                <p className="text-lg text-white">Aggregate PnL: <span className={totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}>${totalPnL.toFixed(2)}</span></p>
+                <p className="text-xs text-gray-500 mt-4">This section is now rendering its basic data.</p>
+            </GlassCard>
+        </div>
+    );
+};
 
 
 const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
