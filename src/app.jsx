@@ -14,24 +14,18 @@ import {
   Save,
   Camera,
   MoreHorizontal,
-  PieChart as PieChartIcon,
   Pencil,
   Trash2,
-  Wallet,
-  User,
   LogOut
 } from 'lucide-react';
 import { 
   AreaChart, 
   Area, 
-  BarChart,
-  Bar,
+  CartesianGrid, 
   XAxis, 
   YAxis, 
-  CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  Cell
+  ResponsiveContainer
 } from 'recharts';
 
 // Assume this import works and provides supabase client and auth hooks
@@ -64,14 +58,16 @@ const NeonBadge = ({ children, type = 'neutral' }) => {
   );
 };
 
-// --- New Component: PnLHeatmap ---
+// --- Updated Component: PnLHeatmap ---
 
 const getDayPnL = (trades) => {
     const dailyPnL = {};
+    const tradeDates = new Set();
     
-    // Group trades by date and sum PnL
+    // Group trades by date, sum PnL, and track all dates with trades
     trades.forEach(trade => {
         const dateKey = trade.date; 
+        tradeDates.add(dateKey);
         if (!dailyPnL[dateKey]) {
             dailyPnL[dateKey] = 0;
         }
@@ -80,13 +76,13 @@ const getDayPnL = (trades) => {
 
     const maxAbsPnL = Math.max(...Object.values(dailyPnL).map(Math.abs), 1);
 
-    return { dailyPnL, maxAbsPnL };
+    return { dailyPnL, maxAbsPnL, tradeDates };
 };
 
 const PnLHeatmap = ({ trades }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     
-    const { dailyPnL, maxAbsPnL } = useMemo(() => getDayPnL(trades), [trades]);
+    const { dailyPnL, maxAbsPnL, tradeDates } = useMemo(() => getDayPnL(trades), [trades]);
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -105,25 +101,32 @@ const PnLHeatmap = ({ trades }) => {
         const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         const pnl = dailyPnL[dateKey] || 0;
         
-        // Calculate the color intensity
+        // Skip days that are NOT present in the trade log (no visual cell)
+        if (!tradeDates.has(dateKey)) {
+             currentWeek.push(null); 
+             if (currentWeek.length === 7) {
+                 weeks.push(currentWeek);
+                 currentWeek = [];
+             }
+             continue; 
+        }
+
+        // --- Color Calculation (Only for days with trades) ---
         const intensity = Math.min(1, Math.abs(pnl) / maxAbsPnL);
         let bgColor = 'bg-gray-800/50';
-        let tooltip = `PnL: $${pnl.toFixed(2)}`;
-
+        
         if (pnl > 0) {
-            // Scale emerald from 200 (low intensity) to 800 (high intensity)
             const shade = Math.round(intensity * 6) * 100 + 200; 
             bgColor = `bg-emerald-${shade}/80`;
         } else if (pnl < 0) {
-            // Scale rose from 200 (low intensity) to 800 (high intensity)
             const shade = Math.round(intensity * 6) * 100 + 200; 
             bgColor = `bg-rose-${shade}/80`;
-        } else if (pnl === 0 && dailyPnL.hasOwnProperty(dateKey)) {
-             // For break-even days (closed trades, zero PnL)
+        } else if (pnl === 0) {
              bgColor = 'bg-cyan-500/20'; 
         }
+        // -----------------------------------------------------
 
-        currentWeek.push({ day, pnl, bgColor, tooltip, dateKey });
+        currentWeek.push({ day, pnl, bgColor, dateKey });
 
         if (currentWeek.length === 7) {
             weeks.push(currentWeek);
@@ -141,7 +144,6 @@ const PnLHeatmap = ({ trades }) => {
     };
 
     const monthName = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-    // Day names starting with Monday
     const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
     return (
@@ -165,27 +167,22 @@ const PnLHeatmap = ({ trades }) => {
                             <div 
                                 key={index} 
                                 className={`aspect-square rounded flex flex-col items-center justify-center text-xs font-light cursor-pointer relative group transition-all duration-100 ${dayData.bgColor} ${dayData.pnl !== 0 ? 'hover:scale-[1.05] hover:shadow-lg' : ''}`}
-                                title={dayData.tooltip}
                             >
-                                <span className="text-gray-200">{dayData.day}</span>
-                                <div className="text-[10px] text-gray-300 opacity-70">
-                                    {dayData.pnl !== 0 && `$${dayData.pnl.toFixed(0)}`}
-                                </div>
-                                {/* Full PnL tooltip on hover */}
-                                <div className="absolute top-full mt-1 z-10 hidden group-hover:block px-2 py-1 rounded-md bg-gray-900 border border-white/10 text-xs text-white shadow-xl whitespace-nowrap -translate-x-1/2 left-1/2">
-                                    {dayData.dateKey}
-                                    <div className={`mt-0.5 ${dayData.pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{dayData.tooltip}</div>
+                                <span className="text-gray-200 text-sm font-medium">{dayData.day}</span>
+                                <div className={`text-[10px] mt-0.5 ${dayData.pnl > 0 ? 'text-emerald-300' : (dayData.pnl < 0 ? 'text-rose-300' : 'text-cyan-300')}`}>
+                                    {/* Permanently show PnL */}
+                                    {dayData.pnl > 0 ? `+$${dayData.pnl.toFixed(0)}` : (dayData.pnl < 0 ? `-$${Math.abs(dayData.pnl).toFixed(0)}` : 'B/E')}
                                 </div>
                             </div>
                         );
                     }
-                    // Empty cell for padding
+                    // Empty cell for padding AND for days with no trades
                     return <div key={index} className="aspect-square"></div>; 
                 })}
             </div>
             
             <div className="mt-4 text-center text-xs text-gray-500 space-x-3">
-                <NeonBadge type="win">Profit</NeonBadge> <NeonBadge type="loss">Loss</NeonBadge> <NeonBadge type="neutral">Break-Even/Closed</NeonBadge>
+                <NeonBadge type="win">Profit</NeonBadge> <NeonBadge type="loss">Loss</NeonBadge> <NeonBadge type="neutral">Break-Even</NeonBadge>
             </div>
         </div>
     );
@@ -288,7 +285,7 @@ const Dashboard = ({ trades }) => {
           <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
             <span className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></span>Monthly PnL Heatmap
           </h3>
-          {/* 👇 HEATMAP INTEGRATION */}
+          {/* PnL HEATMAP INTEGRATION */}
           <PnLHeatmap trades={trades} /> 
         </GlassCard>
       </div>
@@ -308,7 +305,7 @@ const Dashboard = ({ trades }) => {
                 <div className="text-xs text-gray-400 mt-1">{trade.date}</div>
               </div>
               <div className={`text-sm font-light tracking-wide ${trade.pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {trade.pnl > 0 ? '+' : ''}${trade.pnl}
+                {trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}
               </div>
             </div>
           )) : (
@@ -476,7 +473,6 @@ const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
             </div>
             <div className="space-y-1">
               <label className="text-xs text-gray-500 uppercase">Session</label>
-              {/* Added logic to set the session value */}
               <select value={formData.session} onChange={e => setFormData({...formData, session: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none">
                 <option value="">Select Session...</option>
                 {SESSIONS.map(s => <option key={s}>{s}</option>)}
