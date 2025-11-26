@@ -4,7 +4,7 @@ import {
   Filter, TrendingUp, Target, BrainCircuit, X, Save, Camera, 
   MoreHorizontal, Pencil, Trash2, LogOut, ChevronLeft, ChevronRight, 
   CalendarDays, HeartHandshake, Wallet, ArrowUpRight, ArrowDownRight,
-  PieChart as PieIcon
+  PieChart as PieIcon, Menu, ChevronUp
 } from 'lucide-react';
 import { 
   AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, 
@@ -75,7 +75,16 @@ const IconButton = ({ icon: Icon, onClick, variant = "ghost", className = "" }) 
   );
 };
 
-// --- 📊 ANALYTICS UTILITIES ---
+// --- 📊 ANALYTICS & UTILITIES ---
+
+const TRADEABLE_ASSETS = {
+  'Forex Majors': ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD'],
+  'Forex Minors': ['EUR/AUD', 'NZD/USD', 'EUR/GBP', 'CAD/JPY'],
+  'Metals': ['XAU/USD (Gold)', 'XAG/USD (Silver)'],
+  'Indices': ['US30 (Dow)', 'NAS100 (Nasdaq)', 'SPX500 (S&P 500)'],
+  'Cryptos': ['BTC/USD', 'ETH/USD'],
+  'Other': ['Custom Pair']
+};
 
 const getKPIs = (trades) => {
   const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
@@ -221,6 +230,36 @@ const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName
 
 // --- 🧩 DASHBOARD WIDGETS ---
 
+// --- 🆕 MOBILE NAVIGATION ---
+const MobileNav = ({ currentView, setCurrentView }) => {
+  const items = [
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
+    { id: 'journal', icon: BookOpen, label: 'Journal' },
+    { id: 'analytics', icon: BarChart3, label: 'Data' },
+    { id: 'mistakes', icon: AlertTriangle, label: 'Review' },
+  ];
+
+  return (
+    <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-[#131619]/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center pb-safe pt-3 px-2 pb-2">
+      {items.map((item) => {
+        const active = currentView === item.id;
+        return (
+          <button 
+            key={item.id}
+            onClick={() => setCurrentView(item.id)}
+            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-200
+              ${active ? 'text-[#A479FF]' : 'text-gray-500 hover:text-gray-300'}
+            `}
+          >
+            <item.icon size={22} strokeWidth={active ? 2.5 : 2} />
+            <span className="text-[10px] font-medium">{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+};
+
 const Sidebar = ({ currentView, setCurrentView, signOut }) => {
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
@@ -230,10 +269,10 @@ const Sidebar = ({ currentView, setCurrentView, signOut }) => {
   ];
 
   return (
-    <aside className="w-20 lg:w-64 border-r border-white/5 flex flex-col bg-[#0C0F14] z-20 fixed h-full transition-all duration-300">
-      <div className="h-20 flex items-center justify-center lg:justify-start px-6 border-b border-white/5 gap-3">
+    <aside className="hidden md:flex w-64 border-r border-white/5 flex-col bg-[#0C0F14] z-20 fixed h-full transition-all duration-300">
+      <div className="h-20 flex items-center justify-start px-6 border-b border-white/5 gap-3">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A479FF] to-[#4FF3F9] flex items-center justify-center text-black font-bold">M</div>
-        <span className="hidden lg:block text-lg font-medium tracking-tight text-white">Muye<span className="text-gray-500">FX</span></span>
+        <span className="text-lg font-medium tracking-tight text-white">Muye<span className="text-gray-500">FX</span></span>
       </div>
       
       <nav className="flex-1 p-4 space-y-2">
@@ -248,8 +287,8 @@ const Sidebar = ({ currentView, setCurrentView, signOut }) => {
               `}
             >
               <item.icon size={20} className={active ? "text-[#A479FF]" : "group-hover:text-white"} />
-              <span className="hidden lg:block text-sm font-medium">{item.label}</span>
-              {active && <div className="hidden lg:block ml-auto w-1.5 h-1.5 rounded-full bg-[#A479FF] shadow-[0_0_10px_#A479FF]" />}
+              <span className="text-sm font-medium">{item.label}</span>
+              {active && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#A479FF] shadow-[0_0_10px_#A479FF]" />}
             </button>
           );
         })}
@@ -258,7 +297,7 @@ const Sidebar = ({ currentView, setCurrentView, signOut }) => {
       <div className="p-4 border-t border-white/5">
         <button onClick={signOut} className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10 transition-colors">
           <LogOut size={20} />
-          <span className="hidden lg:block text-sm font-medium">Sign Out</span>
+          <span className="text-sm font-medium">Sign Out</span>
         </button>
       </div>
     </aside>
@@ -345,14 +384,14 @@ const CalendarWidget = ({ trades }) => {
             }
 
             return (
-              <div key={i} className={`aspect-square rounded-xl p-2 flex flex-col justify-between transition-all cursor-pointer group ${bg}`}>
+              <div key={i} className={`aspect-square rounded-xl p-1 sm:p-2 flex flex-col justify-between transition-all cursor-pointer group ${bg}`}>
                 <span className={`text-xs font-medium ${data ? 'text-white' : 'text-gray-600'}`}>{d}</span>
                 {data && (
                   <div className="text-right">
-                    <div className={`text-[10px] lg:text-xs font-bold tracking-tight ${text}`}>
+                    <div className={`text-[8px] sm:text-[10px] lg:text-xs font-bold tracking-tight ${text}`}>
                       {data.pnl > 0 ? '+' : ''}{data.pnl.toFixed(0)}
                     </div>
-                    <div className="text-[9px] text-gray-500 mt-0.5 font-medium">
+                    <div className="hidden sm:block text-[9px] text-gray-500 mt-0.5 font-medium">
                       {data.count} Trd
                     </div>
                   </div>
@@ -471,12 +510,16 @@ const MistakesView = ({ trades, onEdit }) => {
                                 <Pie
                                     data={frequencyData} cx="50%" cy="50%" innerRadius={60} outerRadius={80}
                                     paddingAngle={5} dataKey="value"
+                                    stroke="#131619" 
                                 >
                                     {frequencyData.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
-                                <Tooltip contentStyle={{ backgroundColor: '#0C0F14', border: '1px solid #333', borderRadius: '8px' }} />
+                                <Tooltip 
+                                    contentStyle={{ backgroundColor: '#0C0F14', border: '1px solid #333', borderRadius: '8px' }} 
+                                    itemStyle={{ color: '#fff' }} 
+                                />
                                 <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
                             </PieChart>
                         </ResponsiveContainer>
@@ -528,9 +571,16 @@ const MistakesView = ({ trades, onEdit }) => {
 // --- 📝 TRADE LIST & MODAL ---
 
 const TradeList = ({ trades, onEdit, onDelete }) => {
+  // NEW STATE: Tracks which trade ID is currently expanded
+  const [expandedTradeId, setExpandedTradeId] = useState(null);
+
+  const toggleExpand = (id) => {
+    setExpandedTradeId(prevId => prevId === id ? null : id);
+  };
+
   return (
     <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#131619]">
-      <table className="w-full text-left border-collapse">
+      <table className="w-full text-left border-collapse min-w-[850px] lg:min-w-0">
         <thead>
           <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-white/5">
             <th className="p-4 pl-6">Date</th>
@@ -539,33 +589,76 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
             <th className="p-4">Setup</th>
             <th className="p-4 text-right">PnL</th>
             <th className="p-4 text-center">Status</th>
+            <th className="p-4 text-center">Details</th> {/* NEW HEADER */}
             <th className="p-4 text-right pr-6">Actions</th>
           </tr>
         </thead>
         <tbody className="text-sm text-gray-300">
           {trades.map((trade) => (
-            <tr key={trade.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-              <td className="p-4 pl-6 font-mono text-gray-400">{trade.date}</td>
-              <td className="p-4 font-medium text-white">{trade.pair}</td>
-              <td className="p-4">
-                <span className={`text-xs font-medium px-2 py-0.5 rounded ${trade.type === 'Long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                  {trade.type}
-                </span>
-              </td>
-              <td className="p-4 text-gray-400">{trade.setup || '-'}</td>
-              <td className={`p-4 text-right font-mono font-medium ${trade.pnl > 0 ? 'text-[#3CFF64]' : trade.pnl < 0 ? 'text-[#FF4D4D]' : 'text-gray-400'}`}>
-                {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
-              </td>
-              <td className="p-4 text-center">
-                <Badge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</Badge>
-              </td>
-              <td className="p-4 pr-6 text-right">
-                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <IconButton icon={Pencil} onClick={() => onEdit(trade)} />
-                  <IconButton icon={Trash2} onClick={() => onDelete(trade)} variant="danger" />
-                </div>
-              </td>
-            </tr>
+            <React.Fragment key={trade.id}>
+              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                <td className="p-4 pl-6 font-mono text-gray-400">{trade.date}</td>
+                <td className="p-4 font-medium text-white">{trade.pair}</td>
+                <td className="p-4">
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${trade.type === 'Long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                    {trade.type}
+                  </span>
+                </td>
+                <td className="p-4 text-gray-400">{trade.setup || '-'}</td>
+                <td className={`p-4 text-right font-mono font-medium ${trade.pnl > 0 ? 'text-[#3CFF64]' : trade.pnl < 0 ? 'text-[#FF4D4D]' : 'text-gray-400'}`}>
+                  {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+                </td>
+                <td className="p-4 text-center">
+                  <Badge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</Badge>
+                </td>
+                {/* NEW DETAILS CELL */}
+                <td className="p-4 text-center">
+                  <IconButton 
+                    icon={expandedTradeId === trade.id ? ChevronUp : MoreHorizontal} 
+                    onClick={() => toggleExpand(trade.id)} 
+                    className={expandedTradeId === trade.id ? 'text-[#A479FF] rotate-180' : 'text-gray-500'}
+                  />
+                </td>
+                {/* END NEW DETAILS CELL */}
+                <td className="p-4 pr-6 text-right">
+                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <IconButton icon={Pencil} onClick={() => onEdit(trade)} />
+                    <IconButton icon={Trash2} onClick={() => onDelete(trade)} variant="danger" />
+                  </div>
+                </td>
+              </tr>
+              
+              {/* EXPANDED DETAILS ROW */}
+              {expandedTradeId === trade.id && (
+                <tr className="bg-white/[0.03] transition-all">
+                  <td colSpan="8" className="p-4 pt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                      {trade.notes && (
+                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-white/5">
+                          <p className="text-gray-500 font-semibold mb-1 uppercase text-[10px]">Notes</p>
+                          <p className="text-gray-300 italic">{trade.notes}</p>
+                        </div>
+                      )}
+                      {trade.mistake && (
+                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#FF4D4D]/20">
+                          <p className="text-[#FF4D4D] font-semibold mb-1 uppercase text-[10px]">Mistake</p>
+                          <p className="text-gray-300 italic">{trade.mistake}</p>
+                        </div>
+                      )}
+                      {trade.learnings && (
+                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#3CFF64]/20">
+                          <p className="text-[#3CFF64] font-semibold mb-1 uppercase text-[10px]">Learnings</p>
+                          <p className="text-gray-300 italic">{trade.learnings}</p>
+                        </div>
+                      )}
+                      {!trade.notes && !trade.mistake && !trade.learnings && (
+                         <div className="col-span-3 text-center text-gray-500 p-2">No detailed notes logged for this trade.</div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </React.Fragment>
           ))}
         </tbody>
       </table>
@@ -593,6 +686,7 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
         exit: tradeToEdit.exit.toString(),
         mistake: tradeToEdit.mistake || '',
         learnings: tradeToEdit.learnings || '',
+        notes: tradeToEdit.notes || '',
         setup: tradeToEdit.setup || '',
         session: tradeToEdit.session || '',
         screenshot_url: tradeToEdit.screenshot_url || null
@@ -616,6 +710,7 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
       setup: formData.setup || null,
       session: formData.session || null,
       learnings: formData.learnings || null,
+      notes: formData.notes || null,
       outcome: (isNaN(pnlVal) ? 0 : pnlVal) >= 0 ? 'WIN' : 'LOSS',
       id: tradeToEdit ? tradeToEdit.id : Date.now()
     });
@@ -647,8 +742,8 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
   const selectClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-[#4FF3F9]/50 outline-none appearance-none cursor-pointer";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className={`w-full max-w-3xl bg-[#131619] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
+      <div className={`w-full max-w-3xl bg-[#131619] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto`}>
         <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-[#131619] to-[#1A1D21]">
           <h2 className="text-lg font-medium text-white flex items-center gap-2">
             {tradeToEdit ? <Pencil size={18} className="text-[#4FF3F9]" /> : <Plus size={18} className="text-[#4FF3F9]" />}
@@ -663,7 +758,16 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
               <input type="date" className={inputClass} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
             </InputGroup>
             <InputGroup label="Pair">
-              <input type="text" className={inputClass} value={formData.pair} onChange={e => setFormData({...formData, pair: e.target.value})} placeholder="EUR/USD" />
+              {/* UPDATED: Currency Pair Segmented Dropdown */}
+              <select className={selectClass} value={formData.pair} onChange={e => setFormData({...formData, pair: e.target.value})}>
+                {Object.entries(TRADEABLE_ASSETS).map(([group, pairs]) => (
+                  <optgroup key={group} label={group} className="text-gray-400">
+                    {pairs.map(pair => (
+                      <option key={pair} value={pair} className="text-white bg-[#131619]">{pair}</option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
             </InputGroup>
             <InputGroup label="Direction">
               <select className={selectClass} value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
@@ -712,9 +816,15 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             </InputGroup>
           </div>
 
-          <InputGroup label="Learnings / Corrective Action">
-            <textarea rows="2" className={inputClass} value={formData.learnings} onChange={e => setFormData({...formData, learnings: e.target.value})} placeholder="Corrective measure for next time..." />
+          <InputGroup label="Notes / Observations">
+            <textarea rows="3" className={inputClass} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Market conditions, thoughts, emotions..." />
           </InputGroup>
+
+          {formData.mistake && (
+            <InputGroup label="Learnings / Corrective Action">
+              <textarea rows="2" className={`${inputClass} border-[#FF4D4D]/20`} value={formData.learnings} onChange={e => setFormData({...formData, learnings: e.target.value})} placeholder="What will you do differently next time?" />
+            </InputGroup>
+          )}
 
           <div className="border border-dashed border-white/10 rounded-xl p-4 flex items-center gap-4 hover:bg-white/5 transition-colors relative group">
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleScreenshot} className="hidden" />
@@ -878,14 +988,19 @@ const App = () => {
   return (
     <div className={`min-h-screen ${THEME.bg} text-white font-sans selection:bg-[#A479FF]/30`}>
       <div className="flex h-screen overflow-hidden">
+        
+        {/* Mobile Nav (Hidden on Desktop) */}
+        <MobileNav currentView={currentView} setCurrentView={setCurrentView} />
+
+        {/* Desktop Sidebar (Hidden on Mobile) */}
         <Sidebar currentView={currentView} setCurrentView={setCurrentView} signOut={signOut} />
         
-        <main className="flex-1 ml-20 lg:ml-64 flex flex-col overflow-hidden relative">
+        <main className="flex-1 md:ml-64 flex flex-col overflow-hidden relative mb-16 md:mb-0">
           {/* Background Ambient Glows */}
           <div className="absolute top-0 left-0 w-full h-96 bg-[#A479FF]/5 blur-[100px] pointer-events-none" />
           
           {/* Header */}
-          <header className="h-20 flex items-center justify-between px-8 border-b border-white/5 z-10 bg-[#0C0F14]/80 backdrop-blur-sm">
+          <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-white/5 z-10 bg-[#0C0F14]/80 backdrop-blur-sm">
             <div>
               <h1 className="text-xl font-semibold tracking-tight capitalize text-white">{currentView}</h1>
               <p className="text-xs text-gray-500 mt-0.5">Welcome back, Trader.</p>
@@ -908,7 +1023,7 @@ const App = () => {
           </header>
 
           {/* Content Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-8 z-10">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 z-10">
             <div className="max-w-7xl mx-auto">
               {renderContent()}
             </div>
