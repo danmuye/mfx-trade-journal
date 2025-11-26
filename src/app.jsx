@@ -1,515 +1,105 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
-  LayoutDashboard, 
-  BookOpen, 
-  AlertTriangle, 
-  BarChart3, 
-  Plus, 
-  Search, 
-  Filter, 
-  TrendingUp, 
-  Target, 
-  BrainCircuit, 
-  X,
-  Save,
-  Camera,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  LogOut,
-    ChevronLeft,
-    ChevronRight,
-    CalendarDays,
-    HeartHandshake 
+  LayoutDashboard, BookOpen, AlertTriangle, BarChart3, Plus, Search, 
+  Filter, TrendingUp, Target, BrainCircuit, X, Save, Camera, 
+  MoreHorizontal, Pencil, Trash2, LogOut, ChevronLeft, ChevronRight, 
+  CalendarDays, HeartHandshake, Wallet, ArrowUpRight, ArrowDownRight,
+  PieChart as PieIcon
 } from 'lucide-react';
 import { 
-  AreaChart, 
-  Area, 
-  CartesianGrid, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  ResponsiveContainer,
-    BarChart, 
-    Bar,      
-    Cell,      
-    PieChart, 
-    Pie, 
-    Legend,
-    Sector
+  AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, 
+  Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend 
 } from 'recharts';
+import { supabase, useAuth, Auth } from './supabase';
 
-// Assume this import works and provides supabase client and auth hooks
-import { supabase, useAuth, Auth } from './supabase'; 
+// --- 🎨 DESIGN SYSTEM & UTILS ---
+const THEME = {
+  bg: "bg-[#0C0F14]", // Deep Obsidian
+  card: "bg-[#131619]", // Slightly lighter charcoal
+  cardHover: "hover:bg-[#1A1D21]",
+  border: "border-white/5",
+  glass: "backdrop-blur-xl bg-[#131619]/80 border-white/10",
+  accent: {
+    green: "#3CFF64", // Neon Green
+    red: "#FF4D4D",   // Neon Red
+    purple: "#A479FF", // Neon Purple
+    cyan: "#4FF3F9",   // Neon Cyan
+    yellow: "#FFD860"  // Soft Yellow
+  },
+  text: {
+    primary: "text-white",
+    secondary: "text-gray-400",
+    muted: "text-gray-600"
+  }
+};
 
-// --- Mock Data & Constants ---
-const MISTAKE_TYPES = ['FOMO', 'Revenge', 'Over-leveraging', 'Poor Execution', 'Early Exit', 'No Stop Loss'];
-const STRATEGIES = ['Break & Retest', 'Liquidity Sweep', 'Supply/Demand', 'Trend Continuation', 'Gap Fill'];
-const SESSIONS = ['Asian', 'London', 'NYC', 'Close'];
-const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const formatCurrency = (value) => 
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
-// --- Utility Components ---
-const GlassCard = ({ children, className = "", hoverEffect = false }) => (
-  <div className={`relative group rounded-xl bg-gray-900/40 backdrop-blur-xl border border-white/5 overflow-hidden ${className} ${hoverEffect ? 'hover:border-cyan-500/30 transition-colors duration-300' : ''}`}>
-    <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-purple-500/5 pointer-events-none" />
-    {children}
+// --- 🧩 UI PRIMITIVES ---
+
+const Card = ({ children, className = "", noPadding = false, glow = false }) => (
+  <div className={`relative group rounded-2xl border ${THEME.border} ${THEME.card} overflow-hidden transition-all duration-300 ${glow ? 'hover:shadow-[0_0_20px_rgba(164,121,255,0.1)] hover:border-white/10' : ''} ${className}`}>
+    <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+    <div className={noPadding ? "" : "p-6"}>
+      {children}
+    </div>
   </div>
 );
 
-const NeonBadge = ({ children, type = 'neutral' }) => {
+const Badge = ({ children, type = 'neutral', className = "" }) => {
   const styles = {
-    win: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.2)]',
-    loss: 'bg-rose-500/10 text-rose-400 border-rose-500/20 shadow-[0_0_20px_rgba(244,63,94,0.2)]',
-    neutral: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20 shadow-[0_0_10px_rgba(6,182,212,0.2)]',
-    purple: 'bg-purple-500/10 text-purple-400 border-purple-500/20 shadow-[0_0_10px_rgba(168,85,247,0.2)]',
+    win: `bg-[#3CFF64]/10 text-[#3CFF64] border-[#3CFF64]/20`,
+    loss: `bg-[#FF4D4D]/10 text-[#FF4D4D] border-[#FF4D4D]/20`,
+    neutral: `bg-[#4FF3F9]/10 text-[#4FF3F9] border-[#4FF3F9]/20`,
+    purple: `bg-[#A479FF]/10 text-[#A479FF] border-[#A479FF]/20`,
   };
   return (
-    <span className={`px-2 py-1 rounded text-xs font-medium border ${styles[type] || styles.neutral}`}>
+    <span className={`px-2.5 py-1 rounded-md text-[11px] font-medium uppercase tracking-wider border ${styles[type] || styles.neutral} ${className}`}>
       {children}
     </span>
   );
 };
 
-// --- Dashboard Component Helpers (No change) ---
-
-const getDayData = (trades) => {
-    const dailyData = {};
-    
-    // Group trades by date, sum PnL, and count trades
-    trades.forEach(trade => {
-        const dateKey = trade.date; // Assuming trade.date is 'YYYY-MM-DD'
-        if (!dailyData[dateKey]) {
-            dailyData[dateKey] = { pnl: 0, tradeCount: 0 };
-        }
-        dailyData[dateKey].pnl += trade.pnl;
-        dailyData[dateKey].tradeCount += 1;
-    });
-
-    const allPnLs = Object.values(dailyData).map(data => data.pnl);
-    const maxAbsPnL = allPnLs.length > 0 ? Math.max(...allPnLs.map(Math.abs), 1) : 1;
-
-    return { dailyData, maxAbsPnL };
-};
-
-const PnLHeatmap = ({ trades }) => {
-    const [currentDate, setCurrentDate] = useState(new Date());
-    
-    const { dailyData, maxAbsPnL } = useMemo(() => getDayData(trades), [trades]);
-
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth();
-
-    const startOfMonth = new Date(year, month, 1);
-    const endOfMonth = new Date(year, month + 1, 0); // Last day of the current month
-    const prevMonthEnd = new Date(year, month, 0); // Last day of the previous month
-
-    const startingDayOfWeek = startOfMonth.getDay(); // 0 for Sunday, 1 for Monday, etc.
-    const dayOffset = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1; // Adjust to Monday = 0
-
-    const weeks = [];
-    let currentWeek = [];
-
-    // Add days from the previous month for padding
-    for (let i = dayOffset; i > 0; i--) {
-        const day = prevMonthEnd.getDate() - i + 1;
-        currentWeek.push({ day, isFiller: true });
-    }
-
-    // Add days for the current month
-    for (let day = 1; day <= endOfMonth.getDate(); day++) {
-        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const data = dailyData[dateKey];
-        
-        let bgColorClass = 'bg-gray-900/40 border-gray-800'; // Default for no trades logged
-
-        if (data && data.tradeCount > 0) { // Check for trade count to ensure it's an "active" day
-            const pnl = data.pnl;
-            const intensity = Math.min(1, Math.abs(pnl) / maxAbsPnL);
-            
-            if (pnl > 0) {
-                const shade = Math.round(intensity * 6) * 100 + 200; // Emerald from 200 to 800
-                bgColorClass = `bg-emerald-${shade}/80 border-emerald-500/20`;
-            } else if (pnl < 0) {
-                const shade = Math.round(intensity * 6) * 100 + 200; // Rose from 200 to 800
-                bgColorClass = `bg-rose-${shade}/80 border-rose-500/20`;
-            } else if (pnl === 0) {
-                bgColorClass = 'bg-cyan-800/50 border-cyan-500/20'; // Break-even
-            }
-            currentWeek.push({ day, pnl, tradeCount: data.tradeCount, bgColorClass, dateKey, isFiller: false });
-        } else {
-            // Day in the current month with no trades logged
-            currentWeek.push({ day, pnl: 0, tradeCount: 0, isFiller: false, bgColorClass: 'bg-gray-800/50 border-gray-700/50' }); 
-        }
-
-        if (currentWeek.length === 7) {
-            weeks.push(currentWeek);
-            currentWeek = [];
-        }
-    }
-
-    // Add days from the next month for padding
-    let nextMonthDay = 1;
-    while (currentWeek.length < 7 && currentWeek.length > 0) {
-        currentWeek.push({ day: nextMonthDay, isFiller: true });
-        nextMonthDay++;
-    }
-    if (currentWeek.length > 0) { // Push any remaining partial week
-        weeks.push(currentWeek);
-    }
-    
-    const changeMonth = (delta) => {
-        setCurrentDate(prev => new Date(prev.getFullYear(), prev.getMonth() + delta, 1));
-    };
-
-    const goToToday = () => {
-        setCurrentDate(new Date());
-    };
-
-    const monthYear = currentDate.toLocaleString('default', { month: 'long', year: 'numeric' });
-    const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
-    return (
-        <div className="flex flex-col h-full">
-            <div className="flex justify-between items-center mb-4 text-white font-light">
-                <div className="flex items-center gap-2">
-                    <button onClick={goToToday} className="flex items-center gap-1 px-3 py-1 rounded bg-white/5 border border-white/10 text-xs text-gray-300 hover:bg-cyan-500/20 hover:text-cyan-400 transition-colors">
-                        <CalendarDays className="w-4 h-4" /> Today
-                    </button>
-                    <span className="text-gray-500 text-lg">|</span>
-                    <div className="flex items-center gap-1 text-lg">
-                        <button onClick={() => changeMonth(-1)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-xl font-thin">
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <span className="text-white font-light text-base tracking-wide min-w-[120px] text-center">{monthYear}</span>
-                        <button onClick={() => changeMonth(1)} className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/5 transition-colors text-xl font-thin">
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* Day Headers (Mon - Sun) */}
-            <div className="grid grid-cols-7 gap-2 text-center text-xs font-medium text-gray-500 mb-2">
-                {dayNames.map(d => <div key={d}>{d}</div>)}
-            </div>
-
-            {/* Calendar Grid */}
-            <div className="flex-1 grid grid-cols-7 gap-2">
-                {weeks.flat().map((dayData, index) => {
-                    if (!dayData) return <div key={index} className="aspect-square"></div>; 
-
-                    const isCurrentMonth = !dayData.isFiller;
-                    const pnlDisplay = dayData.pnl > 0 ? `+$${dayData.pnl.toFixed(0)}` : `-$${Math.abs(dayData.pnl).toFixed(0)}`;
-                    const tradeCountDisplay = `${dayData.tradeCount} Trades`;
-                    
-                    const cellClasses = `aspect-square rounded-lg flex flex-col items-center justify-center p-2 text-center transition-all duration-100 border ` + 
-                                        (dayData.isFiller 
-                                            ? 'bg-gray-900/30 text-gray-600 border-transparent' // Filler days (prev/next month)
-                                            : dayData.bgColorClass || 'bg-gray-800/50 border-gray-700/50' // Default for no trades in current month
-                                        ) +
-                                        (dayData.tradeCount > 0 ? ' hover:scale-[1.02] hover:shadow-lg' : ''); 
-                    
-                    // Specific text colors for PnL/Trade counts
-                    let pnlTextColor = 'text-white';
-                    if (dayData.pnl > 0) pnlTextColor = 'text-emerald-200';
-                    if (dayData.pnl < 0) pnlTextColor = 'text-rose-200';
-                    if (dayData.pnl === 0 && dayData.tradeCount > 0) pnlTextColor = 'text-cyan-200'; // Break even
-                    
-                    return (
-                        <div key={index} className={cellClasses}>
-                            <span className={`text-sm font-medium ${dayData.isFiller ? 'text-gray-600' : 'text-gray-300'}`}>{dayData.day}</span>
-                            {/* Display PnL and Trade Count only if there was trading activity */}
-                            {isCurrentMonth && dayData.tradeCount > 0 && (
-                                <>
-                                    <div className={`mt-1 text-sm font-light ${pnlTextColor}`}>
-                                        {dayData.pnl === 0 ? 'B/E' : pnlDisplay}
-                                    </div>
-                                    <div className="text-[10px] text-gray-400">
-                                        {tradeCountDisplay}
-                                    </div>
-                                </>
-                            )}
-                            {/* Display the day number only for current month days with no activity */}
-                            {isCurrentMonth && dayData.tradeCount === 0 && (
-                                <div className="text-[10px] text-gray-500 mt-1"></div> 
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
-            
-            <div className="mt-4 text-center text-xs text-gray-500 space-x-3">
-                <NeonBadge type="win">Profit</NeonBadge> <NeonBadge type="loss">Loss</NeonBadge> <NeonBadge type="neutral">Break-Even</NeonBadge> <span className="px-2 py-1 rounded text-xs font-medium border border-gray-700/50 bg-gray-800/50 text-gray-400">No Trades Logged</span>
-            </div>
-        </div>
-    );
-};
-
-
-// --- Sub-Sections (Dashboard component remains the same for now) ---
-const Dashboard = ({ trades }) => {
-  const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
-  const wins = trades.filter(t => t.outcome === 'WIN').length;
-  const total = trades.length;
-  const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : 0;
-  const winningTrades = trades.filter(t => t.pnl > 0);
-  const losingTrades = trades.filter(t => t.pnl < 0);
-  const avgWin = winningTrades.length > 0 ? winningTrades.reduce((acc, t) => acc + t.pnl, 0) / winningTrades.length : 0;
-  const avgLoss = losingTrades.length > 0 ? Math.abs(losingTrades.reduce((acc, t) => acc + t.pnl, 0)) / losingTrades.length : 0;
-  const riskReward = avgLoss > 0 ? (avgWin / avgLoss).toFixed(2) : (avgWin > 0 ? '∞' : '0.00');
-  const winProb = total > 0 ? wins / total : 0;
-  const lossProb = total > 0 ? (total - wins) / total : 0;
-  const expectancy = (avgWin * winProb) - (avgLoss * lossProb);
-
-  let runningBalance = 0;
-  const equityCurve = trades.map(t => {
-    runningBalance += t.pnl;
-    return { name: t.date, value: runningBalance };
-  });
-
+const IconButton = ({ icon: Icon, onClick, variant = "ghost", className = "" }) => {
+  const base = "p-2 rounded-lg transition-all duration-200 flex items-center justify-center";
+  const variants = {
+    ghost: "text-gray-400 hover:text-white hover:bg-white/5",
+    primary: "bg-[#A479FF] text-white hover:bg-[#9361FF] shadow-lg shadow-[#A479FF]/20",
+    danger: "text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10"
+  };
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <GlassCard className="p-6" hoverEffect>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400 text-sm font-light tracking-wide">Net PnL</span>
-            <BarChart3 className="w-4 h-4 text-cyan-400" />
-          </div>
-          <div className={`text-3xl font-thin tracking-tight ${totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-            ${totalPnL.toFixed(2)}
-          </div>
-          <div className="mt-2 text-xs text-gray-500 font-light">All time performance</div>
-        </GlassCard>
-
-        <GlassCard className="p-6" hoverEffect>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400 text-sm font-light tracking-wide">Win Rate</span>
-            <Target className="w-4 h-4 text-purple-400" />
-          </div>
-          <div className="text-3xl font-thin tracking-tight text-gray-100">{winRate}%</div>
-          <div className="mt-2 text-xs text-gray-500 font-light">{wins} Wins / {total > 0 ? total - wins : 0} Losses</div>
-        </GlassCard>
-
-        <GlassCard className="p-6" hoverEffect>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400 text-sm font-light tracking-wide">Risk Reward</span>
-            <BrainCircuit className="w-4 h-4 text-pink-400" />
-          </div>
-          <div className="text-3xl font-thin tracking-tight text-gray-100">{riskReward}R</div>
-          <div className="mt-2 text-xs text-gray-500 font-light">Avg Win: ${avgWin.toFixed(0)} | Avg Loss: ${avgLoss.toFixed(0)}</div>
-        </GlassCard>
-
-        <GlassCard className="p-6" hoverEffect>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-400 text-sm font-light tracking-wide">Expectancy</span>
-            <TrendingUp className="w-4 h-4 text-orange-400" />
-          </div>
-          <div className="text-3xl font-thin tracking-tight text-gray-100">${expectancy.toFixed(2)}</div>
-          <div className="mt-2 text-xs text-gray-500 font-light">Per trade value</div>
-        </GlassCard>
-      </div>
-            
-            {/* PnL Heatmap (Now full width above Equity Curve) */}
-            <GlassCard className="p-6">
-                <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
-                    <span className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></span>Monthly PnL Heatmap
-                </h3>
-                <PnLHeatmap trades={trades} /> 
-            </GlassCard>
-
-      <div className="grid grid-cols-1 gap-6"> {/* Simplified to 1 column for Equity Curve */}
-        <GlassCard className="p-6 min-h-[400px]"> 
-          <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
-            <span className="w-1 h-6 bg-gradient-to-b from-cyan-400 to-purple-500 rounded-full"></span>Equity Curve
-          </h3>
-          <div className="h-[300px] w-full">
-            {equityCurve.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={equityCurve}>
-                  <defs>
-                    <linearGradient id="colorPnL" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#22d3ee" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#22d3ee" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                  <XAxis dataKey="name" stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
-                  <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} itemStyle={{ color: '#22d3ee' }} />
-                  <Area type="monotone" dataKey="value" stroke="#22d3ee" strokeWidth={2} fillOpacity={1} fill="url(#colorPnL)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-gray-500 text-sm font-light">No trade data available yet.</div>
-            )}
-          </div>
-        </GlassCard>
-      </div>
-      
-      <GlassCard className="p-6">
-        <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
-          <span className="w-1 h-6 bg-gradient-to-b from-rose-400 to-orange-500 rounded-full"></span>Recent Activity
-        </h3>
-        <div className="space-y-4">
-          {trades.length > 0 ? trades.slice(0, 5).map((trade) => (
-            <div key={trade.id} className="flex items-center justify-between p-3 hover:bg-white/5 rounded-lg transition-colors cursor-pointer border-b border-white/5 last:border-0">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-sm font-medium ${trade.outcome === 'Long' ? 'text-emerald-400' : 'text-rose-400'}`}>{trade.pair}</span>
-                  <span className="text-xs text-gray-500 uppercase">{trade.type}</span>
-                </div>
-                <div className="text-xs text-gray-400 mt-1">{trade.date}</div>
-              </div>
-              <div className={`text-sm font-light tracking-wide ${trade.pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}
-              </div>
-            </div>
-          )) : (
-            <div className="text-center py-8 text-gray-600 text-xs">Start logging trades to see activity.</div>
-          )}
-        </div>
-        <button className="w-full mt-6 py-2 text-xs text-gray-400 hover:text-white transition-colors border border-white/10 rounded hover:bg-white/5">View Full History</button>
-      </GlassCard>
-    </div>
+    <button onClick={onClick} className={`${base} ${variants[variant]} ${className}`}>
+      <Icon size={18} />
+    </button>
   );
 };
 
-// --- UTILITY: Get Mistake Analytics ---
-const getMistakeAnalytics = (trades) => {
-    const mistakeTrades = trades.filter(t => t.mistake && t.mistake.length > 0);
-    const totalMistakePnL = mistakeTrades.reduce((acc, t) => acc + t.pnl, 0);
+// --- 📊 ANALYTICS UTILITIES ---
 
-    const frequencyMap = mistakeTrades.reduce((acc, t) => {
-        acc[t.mistake] = (acc[t.mistake] || 0) + 1;
-        return acc;
-    }, {});
+const getKPIs = (trades) => {
+  const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
+  const wins = trades.filter(t => t.outcome === 'WIN');
+  const losses = trades.filter(t => t.outcome === 'LOSS');
+  const winRate = trades.length > 0 ? (wins.length / trades.length) * 100 : 0;
+  
+  const avgWin = wins.length > 0 ? wins.reduce((acc, t) => acc + t.pnl, 0) / wins.length : 0;
+  const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((acc, t) => acc + t.pnl, 0)) / losses.length : 0;
+  const rr = avgLoss > 0 ? (avgWin / avgLoss) : 0;
 
-    const frequencyData = Object.entries(frequencyMap)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-
-    return { totalMistakePnL, frequencyData, mistakeTrades };
+  return { totalPnL, winRate, rr, totalTrades: trades.length };
 };
 
-// --- Component: Mistakes ---
-const Mistakes = ({ trades, onEdit }) => {
-    if (!trades || trades.length === 0) {
-        return <div className="text-center py-12 text-gray-600">No trades logged yet.</div>;
-    }
-    
-    const { totalMistakePnL, frequencyData, mistakeTrades } = getMistakeAnalytics(trades);
-
-    const COLORS = ['#f43f5e', '#a78bfa', '#fde047', '#34d399', '#f97316', '#ef4444'];
-    const RADIAN = Math.PI / 180;
-    const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index }) => {
-        const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
-        const x = cx + radius * Math.cos(-midAngle * RADIAN);
-        const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
-        return (
-            <text x={x} y={y} fill="white" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central" className="text-xs font-medium">
-                {`${(percent * 100).toFixed(0)}%`}
-            </text>
-        );
-    };
-
-    return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            <h2 className="text-3xl font-thin text-white tracking-wide flex items-center gap-2">
-                <AlertTriangle className="w-6 h-6 text-rose-400" /> Behavioral Audit
-            </h2>
-            <p className="text-sm text-gray-400">Review the financial impact and frequency of your recurring trading mistakes to implement corrective measures.</p>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* PnL Impact KPI */}
-                <GlassCard className="p-6 col-span-1 border-rose-500/30 shadow-lg shadow-rose-500/10">
-                    <div className="text-sm text-gray-400 uppercase tracking-wider mb-2">Total PnL Lost Due to Mistakes</div>
-                    <div className={`text-4xl font-bold tracking-tight ${totalMistakePnL <= 0 ? 'text-rose-400' : 'text-emerald-400'}`}>
-                        {totalMistakePnL > 0 ? '+' : ''}${totalMistakePnL.toFixed(2)}
-                    </div>
-                    <div className="mt-2 text-xs text-gray-500">This total is based only on trades with a logged mistake.</div>
-                </GlassCard>
-
-                {/* Mistake Frequency Chart */}
-                <GlassCard className="p-6 lg:col-span-2 min-h-[400px]">
-                    <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
-                        <span className="w-1 h-6 bg-gradient-to-b from-rose-400 to-orange-500 rounded-full"></span> Mistake Frequency Breakdown
-                    </h3>
-                    <div className="h-[300px] w-full flex justify-center items-center">
-                        {frequencyData.length > 0 ? (
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={frequencyData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={80}
-                                        outerRadius={120}
-                                        fill="#8884d8"
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                        labelLine={false}
-                                        label={renderCustomizedLabel}
-                                    >
-                                        {frequencyData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip 
-                                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} 
-                                        formatter={(value, name) => [value, name]}
-                                        labelStyle={{ color: '#fff' }}
-                                    />
-                                    <Legend layout="horizontal" verticalAlign="bottom" align="center" wrapperStyle={{ padding: '20px 0 0 0' }} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="text-gray-500 text-sm font-light">No mistakes logged yet.</div>
-                        )}
-                    </div>
-                </GlassCard>
-            </div>
-
-            {/* Mistake Review List */}
-            <GlassCard className="p-6">
-                <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
-                    <HeartHandshake className="w-5 h-5 text-emerald-400" /> Trade Review and Corrective Actions
-                </h3>
-                {mistakeTrades.length > 0 ? (
-                    <div className="space-y-4">
-                        {mistakeTrades.map(trade => (
-                            <div key={trade.id} className="p-4 bg-gray-800/50 border border-rose-500/20 rounded-lg shadow-md hover:bg-gray-700/50 transition-colors">
-                                <div className="flex justify-between items-start mb-2 border-b border-white/5 pb-2">
-                                    <div className="flex items-center gap-3">
-                                        <div className="text-sm font-medium text-white">{trade.pair} <span className="text-gray-500 text-xs">on {trade.date}</span></div>
-                                        <NeonBadge type="loss">{trade.mistake}</NeonBadge>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className={`text-lg font-bold ${trade.pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                            {trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}
-                                        </div>
-                                        <button onClick={() => onEdit(trade)} className="text-gray-500 hover:text-cyan-400 transition-colors p-1 rounded-full hover:bg-white/5" title="Review Trade">
-                                            <Pencil className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="mt-2">
-                                    <p className="text-xs text-gray-500 uppercase font-medium">Learnings/Corrective Action:</p>
-                                    <p className="text-sm text-gray-300 italic mt-1">{trade.learnings || "No action recorded yet. Click the pencil icon to log your learning."}</p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                ) : (
-                    <div className="text-gray-500 text-sm py-8 text-center">Excellent work! No trades logged with a mistake yet.</div>
-                )}
-            </GlassCard>
-        </div>
-    );
+const getCalendarData = (trades) => {
+  const dailyData = {};
+  trades.forEach(trade => {
+    if (!dailyData[trade.date]) dailyData[trade.date] = { pnl: 0, count: 0 };
+    dailyData[trade.date].pnl += trade.pnl;
+    dailyData[trade.date].count += 1;
+  });
+  return dailyData;
 };
 
-
-// --- UTILITY: Get Pair Analytics (No change) ---
 const getPairAnalytics = (trades) => {
     const pairPnL = trades.reduce((acc, trade) => {
         acc[trade.pair] = (acc[trade.pair] || 0) + trade.pnl;
@@ -527,63 +117,44 @@ const getPairAnalytics = (trades) => {
     const top5 = sortedPairs.slice(0, 5);
     const bottom5 = sortedPairs.slice(-5);
     
-    // Combine, remove duplicates, and sort by PnL for the bar chart
     const chartData = [...top5, ...bottom5]
-        .filter((item, index, self) => 
-            index === self.findIndex((t) => (
-                t.pair === item.pair
-            ))
-        )
+        .filter((item, index, self) => index === self.findIndex((t) => (t.pair === item.pair)))
         .sort((a, b) => b.pnl - a.pnl);
-
 
     return { mostProfitable, worstPerforming, chartData };
 };
 
-// --- UTILITY: Get Time and Strategy Analytics (No change) ---
 const getTimeAndStrategyAnalytics = (trades) => {
-    const analytics = {
-        sessionPnL: {},
-        dayPnL: {},
-        strategyPnL: {},
-    };
+    const SESSIONS = ['Asian', 'London', 'NYC', 'Close'];
+    const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    
+    const analytics = { sessionPnL: {}, dayPnL: {}, strategyPnL: {} };
 
-    // Initialize dayPnL array with all days of the week in order (Mon=0)
-    DAYS_OF_WEEK.forEach((day, index) => {
-        analytics.dayPnL[day] = { pnl: 0, trades: 0, order: index };
-    });
+    DAYS_OF_WEEK.forEach((day, index) => { analytics.dayPnL[day] = { pnl: 0, trades: 0, order: index }; });
 
     trades.forEach(trade => {
-        // 1. Session PnL
         const session = trade.session || 'Unspecified';
         analytics.sessionPnL[session] = (analytics.sessionPnL[session] || 0) + trade.pnl;
 
-        // 2. Day of Week PnL
-        // Convert 'YYYY-MM-DD' date string to a Date object.
-        // NOTE: Use UTC or add a day to account for timezone issues when parsing date-only strings
         const tradeDate = new Date(trade.date + 'T00:00:00Z');
-        // getUTCDay() returns 0 for Sunday, 1 for Monday, etc.
         let dayIndex = tradeDate.getUTCDay();
-        dayIndex = dayIndex === 0 ? 6 : dayIndex - 1; // Adjust to 0 for Monday, 6 for Sunday
+        dayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
         const day = DAYS_OF_WEEK[dayIndex];
-        
         if (analytics.dayPnL[day]) {
              analytics.dayPnL[day].pnl += trade.pnl;
              analytics.dayPnL[day].trades += 1;
         }
 
-        // 3. Strategy PnL
         const strategy = trade.setup || 'Unspecified';
         analytics.strategyPnL[strategy] = (analytics.strategyPnL[strategy] || 0) + trade.pnl;
     });
 
-    // Format for recharts:
     const sessionData = Object.entries(analytics.sessionPnL)
         .map(([name, pnl]) => ({ name, pnl }))
         .sort((a, b) => SESSIONS.indexOf(a.name) - SESSIONS.indexOf(b.name));
 
     const dayData = Object.values(analytics.dayPnL)
-        .filter(d => d.trades > 0) // Only show days you actually traded
+        .filter(d => d.trades > 0)
         .sort((a, b) => a.order - b.order)
         .map(d => ({ name: DAYS_OF_WEEK[d.order], pnl: d.pnl }));
     
@@ -594,817 +165,783 @@ const getTimeAndStrategyAnalytics = (trades) => {
     return { sessionData, dayData, strategyData };
 };
 
+const getMistakeAnalytics = (trades) => {
+    const mistakeTrades = trades.filter(t => t.mistake && t.mistake.length > 0);
+    const totalMistakePnL = mistakeTrades.reduce((acc, t) => acc + t.pnl, 0);
 
-// --- Chart Rendering Component (No change) ---
-const PnLBarChart = ({ data, title, primaryColor = '#22d3ee', keyName = 'name', titleIcon = 'BarChart3' }) => {
-    const IconComponent = ({ name }) => {
-        switch (name) {
-            case 'BarChart3': return <BarChart3 className="w-5 h-5 text-cyan-400" />;
-            case 'CalendarDays': return <CalendarDays className="w-5 h-5 text-purple-400" />;
-            case 'BrainCircuit': return <BrainCircuit className="w-5 h-5 text-emerald-400" />;
-            default: return <div className="w-1 h-6 bg-gradient-to-b from-blue-400 to-cyan-500 rounded-full"></div>;
-        }
-    };
-    
-    if (!data || data.length === 0) {
-        return <div className="text-gray-500 text-sm font-light text-center py-12">No data available for this chart.</div>;
-    }
-    
+    const frequencyMap = mistakeTrades.reduce((acc, t) => {
+        acc[t.mistake] = (acc[t.mistake] || 0) + 1;
+        return acc;
+    }, {});
+
+    const frequencyData = Object.entries(frequencyMap)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value);
+
+    return { totalMistakePnL, frequencyData, mistakeTrades };
+};
+
+// --- 🧱 REUSABLE CHART COMPONENT ---
+
+const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName = 'name', height = 300 }) => {
+    if (!data || data.length === 0) return (
+        <Card className="flex items-center justify-center min-h-[300px] text-gray-500 text-sm">
+            No data available for {title}
+        </Card>
+    );
+
     return (
-        <GlassCard className="p-6 min-h-[400px]">
-            <h3 className="text-lg font-light text-gray-200 mb-6 flex items-center gap-2">
-                <IconComponent name={titleIcon} /> {title}
-            </h3>
-            <div className="h-[300px] w-full">
+        <Card noPadding>
+            <div className="p-6 border-b border-white/5">
+                <h3 className="text-lg font-medium text-white">{title}</h3>
+            </div>
+            <div className="p-6" style={{ height: `${height}px` }}>
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                    <BarChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
-                        <XAxis dataKey={keyName} stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} />
-                        <YAxis stroke="#64748b" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val.toFixed(0)}`} />
+                        <XAxis dataKey={keyName} stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} />
+                        <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
                         <Tooltip 
-                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #334155', borderRadius: '8px' }} 
-                            formatter={(value) => [`$${value.toFixed(2)}`, 'Total PnL']}
-                            labelStyle={{ color: '#fff' }}
+                            cursor={{ fill: 'transparent' }}
+                            contentStyle={{ backgroundColor: '#0C0F14', border: '1px solid #333', borderRadius: '12px' }} 
+                            formatter={(value) => [`$${value.toFixed(2)}`, 'PnL']}
+                            labelStyle={{ color: '#fff', marginBottom: '5px' }}
                         />
-                        <Bar 
-                            dataKey="pnl" 
-                            radius={[4, 4, 0, 0]} 
-                            isAnimationActive={true}
-                            fill={primaryColor}
-                        >
+                        <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                             {data.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? '#10b981' : '#f43f5e'} />
+                                <Cell key={`cell-${index}`} fill={entry.pnl >= 0 ? THEME.accent.green : THEME.accent.red} />
                             ))}
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
             </div>
-        </GlassCard>
+        </Card>
     );
-}
+};
 
-// --- Component: Analytics (No change) ---
-const Analytics = ({ trades }) => {
-    if (!trades || trades.length === 0) {
-        return <div className="text-center py-12 text-gray-600">No trades logged yet to generate analytics.</div>;
-    }
+// --- 🧩 DASHBOARD WIDGETS ---
 
+const Sidebar = ({ currentView, setCurrentView, signOut }) => {
+  const items = [
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
+    { id: 'journal', icon: BookOpen, label: 'Journal' },
+    { id: 'analytics', icon: BarChart3, label: 'Analytics' },
+    { id: 'mistakes', icon: AlertTriangle, label: 'Mistakes' },
+  ];
+
+  return (
+    <aside className="w-20 lg:w-64 border-r border-white/5 flex flex-col bg-[#0C0F14] z-20 fixed h-full transition-all duration-300">
+      <div className="h-20 flex items-center justify-center lg:justify-start px-6 border-b border-white/5 gap-3">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A479FF] to-[#4FF3F9] flex items-center justify-center text-black font-bold">M</div>
+        <span className="hidden lg:block text-lg font-medium tracking-tight text-white">Muye<span className="text-gray-500">FX</span></span>
+      </div>
+      
+      <nav className="flex-1 p-4 space-y-2">
+        {items.map((item) => {
+          const active = currentView === item.id;
+          return (
+            <button 
+              key={item.id}
+              onClick={() => setCurrentView(item.id)}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 group
+                ${active ? 'bg-[#A479FF]/10 text-[#A479FF]' : 'text-gray-400 hover:text-white hover:bg-white/5'}
+              `}
+            >
+              <item.icon size={20} className={active ? "text-[#A479FF]" : "group-hover:text-white"} />
+              <span className="hidden lg:block text-sm font-medium">{item.label}</span>
+              {active && <div className="hidden lg:block ml-auto w-1.5 h-1.5 rounded-full bg-[#A479FF] shadow-[0_0_10px_#A479FF]" />}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="p-4 border-t border-white/5">
+        <button onClick={signOut} className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10 transition-colors">
+          <LogOut size={20} />
+          <span className="hidden lg:block text-sm font-medium">Sign Out</span>
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+const StatsWidget = ({ label, value, subValue, trend, icon: Icon, accentColor }) => (
+  <Card className="flex flex-col justify-between h-[140px]" glow>
+    <div className="flex justify-between items-start">
+      <div className={`p-2.5 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${accentColor}1A` }}>
+        <Icon size={20} style={{ color: accentColor }} />
+      </div>
+      {trend && (
+        <span className={`flex items-center text-xs font-medium ${trend > 0 ? 'text-[#3CFF64]' : 'text-[#FF4D4D]'}`}>
+          {trend > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+          {Math.abs(trend)}%
+        </span>
+      )}
+    </div>
+    <div>
+      <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">{label}</h4>
+      <div className="text-2xl font-semibold text-white tracking-tight">{value}</div>
+      {subValue && <div className="text-xs text-gray-500 mt-1">{subValue}</div>}
+    </div>
+  </Card>
+);
+
+const CalendarWidget = ({ trades }) => {
+  const [date, setDate] = useState(new Date());
+  const dailyData = useMemo(() => getCalendarData(trades), [trades]);
+  
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startDay = new Date(year, month, 1).getDay(); 
+  const offset = startDay === 0 ? 6 : startDay - 1; 
+
+  const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+
+  const days = [];
+  for (let i = 0; i < offset; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+
+  return (
+    <Card className="col-span-1 lg:col-span-2 h-full min-h-[400px]" noPadding>
+      <div className="p-6 border-b border-white/5 flex justify-between items-center">
+        <h3 className="text-lg font-medium text-white flex items-center gap-2">
+          <CalendarDays size={18} className="text-[#4FF3F9]" /> Profit Calendar
+        </h3>
+        <div className="flex items-center gap-2">
+          <IconButton icon={ChevronLeft} onClick={() => setDate(new Date(year, month - 1, 1))} />
+          <span className="text-sm font-medium text-gray-300 w-32 text-center">{monthName}</span>
+          <IconButton icon={ChevronRight} onClick={() => setDate(new Date(year, month + 1, 1))} />
+        </div>
+      </div>
+      
+      <div className="p-6">
+        <div className="grid grid-cols-7 gap-2 mb-2">
+          {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
+            <div key={d} className="text-center text-[10px] font-medium text-gray-500 uppercase tracking-wider">{d}</div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-2">
+          {days.map((d, i) => {
+            if (!d) return <div key={i} className="aspect-square rounded-lg bg-[#1A1D21]/30" />;
+            
+            const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const data = dailyData[dateKey];
+            
+            let bg = "bg-[#1A1D21] border border-white/5";
+            let text = "text-gray-500";
+            
+            if (data) {
+              if (data.pnl > 0) {
+                bg = "bg-[#3CFF64]/10 border border-[#3CFF64]/30 hover:bg-[#3CFF64]/20";
+                text = "text-[#3CFF64]";
+              } else if (data.pnl < 0) {
+                bg = "bg-[#FF4D4D]/10 border border-[#FF4D4D]/30 hover:bg-[#FF4D4D]/20";
+                text = "text-[#FF4D4D]";
+              } else {
+                bg = "bg-[#4FF3F9]/10 border border-[#4FF3F9]/30";
+                text = "text-[#4FF3F9]";
+              }
+            }
+
+            return (
+              <div key={i} className={`aspect-square rounded-xl p-2 flex flex-col justify-between transition-all cursor-pointer group ${bg}`}>
+                <span className={`text-xs font-medium ${data ? 'text-white' : 'text-gray-600'}`}>{d}</span>
+                {data && (
+                  <div className="text-right">
+                    <div className={`text-[10px] lg:text-xs font-bold tracking-tight ${text}`}>
+                      {data.pnl > 0 ? '+' : ''}{data.pnl.toFixed(0)}
+                    </div>
+                    <div className="text-[9px] text-gray-500 mt-0.5 font-medium">
+                      {data.count} Trd
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+const EquityCurveWidget = ({ trades }) => {
+  let balance = 0;
+  const data = trades.slice().reverse().map(t => {
+    balance += t.pnl;
+    return { ...t, balance };
+  });
+
+  return (
+    <Card className="col-span-1 h-full min-h-[400px]" noPadding>
+      <div className="p-6 border-b border-white/5">
+        <h3 className="text-lg font-medium text-white flex items-center gap-2">
+          <TrendingUp size={18} className="text-[#A479FF]" /> Equity Curve
+        </h3>
+      </div>
+      <div className="h-[320px] w-full p-4 pt-8">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id="colorBalance" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#A479FF" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#A479FF" stopOpacity={0}/>
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+            <XAxis dataKey="date" stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} minTickGap={30} />
+            <YAxis stroke="#64748b" fontSize={10} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#0C0F14', borderColor: '#333', borderRadius: '8px', color: '#fff' }}
+              itemStyle={{ color: '#A479FF' }}
+            />
+            <Area type="monotone" dataKey="balance" stroke="#A479FF" strokeWidth={2} fillOpacity={1} fill="url(#colorBalance)" />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </Card>
+  );
+};
+
+// --- 📑 VIEWS: ANALYTICS & MISTAKES ---
+
+const AnalyticsView = ({ trades }) => {
     const { mostProfitable, worstPerforming, chartData: pairChartData } = getPairAnalytics(trades);
     const { sessionData, dayData, strategyData } = getTimeAndStrategyAnalytics(trades);
-    
-    const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
-    const winRate = (trades.filter(t => t.outcome === 'WIN').length / trades.length) * 100;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* 1. Main Stats & KPIs (No change) */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <GlassCard className="p-4" hoverEffect>
-                    <div className="text-xs text-gray-400 uppercase">Total PnL</div>
-                    <div className={`text-2xl font-thin tracking-tight ${totalPnL >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        ${totalPnL.toFixed(2)}
-                    </div>
-                </GlassCard>
-                
-                <GlassCard className="p-4" hoverEffect>
-                    <div className="text-xs text-gray-400 uppercase">Win Rate</div>
-                    <div className="text-2xl font-thin tracking-tight text-purple-400">
-                        {winRate.toFixed(1)}%
-                    </div>
-                </GlassCard>
-
-                <GlassCard className="p-4" hoverEffect>
-                    <div className="text-xs text-gray-400 uppercase">Most Profitable Pair</div>
-                    {mostProfitable ? (
-                        <div className="text-lg font-light text-emerald-400">
-                            {mostProfitable.pair} <span className="text-sm text-gray-400">(${mostProfitable.pnl.toFixed(0)})</span>
-                        </div>
-                    ) : (
-                        <div className="text-lg font-light text-gray-500">N/A</div>
-                    )}
-                </GlassCard>
-
-                <GlassCard className="p-4" hoverEffect>
-                    <div className="text-xs text-gray-400 uppercase">Worst Performing Pair</div>
-                    {worstPerforming ? (
-                         <div className="text-lg font-light text-rose-400">
-                            {worstPerforming.pair} <span className="text-sm text-gray-400">(${worstPerforming.pnl.toFixed(0)})</span>
-                        </div>
-                    ) : (
-                        <div className="text-lg font-light text-gray-500">N/A</div>
-                    )}
-                </GlassCard>
-            </div>
-
-            {/* 2. Charts (All New and Updated) */}
-            
-            {/* Pair Performance */}
-            <PnLBarChart 
-                data={pairChartData} 
-                title="Pair PnL Breakdown (Top & Bottom Performers)"
-                titleIcon="BarChart3"
-            />
-            
-            {/* Time-Based Analytics */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <PnLBarChart 
-                    data={sessionData} 
-                    title="PnL by Trading Session"
-                    titleIcon="CalendarDays"
-                    primaryColor="#f472b6" // Pink color
-                />
-                
-                <PnLBarChart 
-                    data={dayData} 
-                    title="PnL by Day of the Week"
-                    titleIcon="CalendarDays"
-                    primaryColor="#a78bfa" // Purple color
-                />
+                <ModernBarChart data={pairChartData} title="Top & Bottom Pairs" keyName="pair" />
+                <ModernBarChart data={strategyData} title="Strategy Performance" keyName="name" primaryColor={THEME.accent.purple} />
             </div>
             
-            {/* Strategy Performance */}
-            <PnLBarChart 
-                data={strategyData} 
-                title="PnL by Strategy / Setup"
-                titleIcon="BrainCircuit"
-                primaryColor="#10b981" // Emerald color
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <ModernBarChart data={sessionData} title="Session Performance" keyName="name" primaryColor={THEME.accent.yellow} />
+                <ModernBarChart data={dayData} title="Day of Week Performance" keyName="name" primaryColor={THEME.accent.cyan} />
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <Card>
+                    <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">Most Profitable Pair</div>
+                    {mostProfitable ? (
+                        <div>
+                            <div className="text-3xl font-bold text-white">{mostProfitable.pair}</div>
+                            <div className="text-[#3CFF64] text-lg font-mono">+${mostProfitable.pnl.toFixed(2)}</div>
+                        </div>
+                    ) : <div className="text-gray-500">N/A</div>}
+                </Card>
+                <Card>
+                    <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">Worst Performing Pair</div>
+                    {worstPerforming ? (
+                        <div>
+                            <div className="text-3xl font-bold text-white">{worstPerforming.pair}</div>
+                            <div className="text-[#FF4D4D] text-lg font-mono">${worstPerforming.pnl.toFixed(2)}</div>
+                        </div>
+                    ) : <div className="text-gray-500">N/A</div>}
+                </Card>
+            </div>
         </div>
     );
 };
 
+const MistakesView = ({ trades, onEdit }) => {
+    const { totalMistakePnL, frequencyData, mistakeTrades } = getMistakeAnalytics(trades);
+    const COLORS = [THEME.accent.red, THEME.accent.purple, THEME.accent.yellow, THEME.accent.cyan, THEME.accent.green, '#fff'];
 
-const JournalEntry = ({ isOpen, onClose, onSave, tradeToEdit }) => {
-  const { user } = useAuth(); 
-  const [formData, setFormData] = useState({
-    pair: 'EUR/AUD',  
-    type: 'Long',
-    setup: '',
-    entry: '',
-    exit: '',
-    pnl: '',
-    mistake: '',
-        learnings: '', // NEW FIELD
-    notes: '',
-    tags: [],
-    session: '', 
-    date: new Date().toISOString().split('T')[0],
-    screenshot_url: null
-  });
-  const [activeTagInput, setActiveTagInput] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [screenshotFile, setScreenshotFile] = useState(null);
-  const fileInputRef = useRef(null);
+    return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="col-span-1 lg:col-span-1 flex flex-col justify-center border-[#FF4D4D]/30" glow>
+                    <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">Total Loss Due to Mistakes</div>
+                    <div className={`text-4xl font-bold font-mono ${totalMistakePnL <= 0 ? 'text-[#FF4D4D]' : 'text-[#3CFF64]'}`}>
+                        {totalMistakePnL > 0 ? '+' : ''}${totalMistakePnL.toFixed(2)}
+                    </div>
+                    <div className="mt-3 text-[10px] text-gray-500">Cumulative PnL of all trades tagged with a mistake.</div>
+                </Card>
 
-  useEffect(() => {
-    if (isOpen) {
-      if (tradeToEdit) {
-        setFormData({
-          ...tradeToEdit,
-          pnl: tradeToEdit.pnl.toString(),
-          entry: tradeToEdit.entry.toString(),
-          exit: tradeToEdit.exit.toString(),
-          mistake: tradeToEdit.mistake || '',
-                    learnings: tradeToEdit.learnings || '', // Load new field
-          setup: tradeToEdit.setup || '',
-          session: tradeToEdit.session || '',
-          screenshot_url: tradeToEdit.screenshot_url || null
-        });
-        setScreenshotFile(null);
-      } else {
-        setFormData({
-          pair: 'EUR/AUD',  
-          type: 'Long',
-          setup: '',
-          entry: '',
-          exit: '',
-          pnl: '',
-          mistake: '',
-                    learnings: '', // Reset new field
-          notes: '',
-          tags: [],
-          session: '',
-          date: new Date().toISOString().split('T')[0],
-          screenshot_url: null
-        });
-        setScreenshotFile(null);
-      }
-    }
-  }, [isOpen, tradeToEdit]);
+                <Card className="col-span-1 lg:col-span-2 min-h-[300px]" noPadding>
+                    <div className="p-6 border-b border-white/5">
+                        <h3 className="text-lg font-medium text-white">Mistake Frequency</h3>
+                    </div>
+                    <div className="h-[250px] w-full p-4">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie
+                                    data={frequencyData} cx="50%" cy="50%" innerRadius={60} outerRadius={80}
+                                    paddingAngle={5} dataKey="value"
+                                >
+                                    {frequencyData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Pie>
+                                <Tooltip contentStyle={{ backgroundColor: '#0C0F14', border: '1px solid #333', borderRadius: '8px' }} />
+                                <Legend verticalAlign="middle" align="right" layout="vertical" iconType="circle" />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </Card>
+            </div>
 
-  const handleScreenshotUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-
-    setUploading(true);
-    setScreenshotFile(file);
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
-      const filePath = `${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('screenshots') 
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('screenshots') 
-        .getPublicUrl(filePath);
-
-      setFormData(prev => ({ ...prev, screenshot_url: publicUrl }));
-    } catch (error) {
-      console.error('Error uploading screenshot:', error);
-      alert('Failed to upload screenshot');
-      setScreenshotFile(null);
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleTagAdd = (e) => {
-    if (e.key === 'Enter' && activeTagInput) {
-        e.preventDefault();
-        setFormData(prev => ({ ...prev, tags: [...prev.tags, activeTagInput] }));
-        setActiveTagInput('');
-    }
-  };
-  
-  const handleTagRemove = (idxToRemove) => {
-    setFormData(prev => ({...prev, tags: prev.tags.filter((_, idx) => idx !== idxToRemove)}))
-  }
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const pnlVal = parseFloat(formData.pnl);
-    const entryVal = parseFloat(formData.entry);
-    const exitVal = parseFloat(formData.exit);
-        
-        // Convert empty strings to null for optional database fields
-    const tradeData = {
-        ...formData,
-                mistake: formData.mistake || null,
-                setup: formData.setup || null,
-                session: formData.session || null, 
-                notes: formData.notes || null, 
-                learnings: formData.learnings || null, // NEW FIELD
-                
-        pnl: isNaN(pnlVal) ? 0 : pnlVal,
-        entry: isNaN(entryVal) ? 0 : entryVal,
-        exit: isNaN(exitVal) ? 0 : exitVal,
-        outcome: (isNaN(pnlVal) ? 0 : pnlVal) >= 0 ? 'WIN' : 'LOSS',
-        id: tradeToEdit ? tradeToEdit.id : Date.now()
-    };
-
-    onSave(tradeData);
-    setScreenshotFile(null);
-    onClose();
-  };
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <GlassCard className="w-full max-w-2xl p-0 overflow-hidden shadow-2xl shadow-purple-500/10 max-h-[95vh]">
-        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
-          <h2 className="text-xl font-light text-white tracking-wide flex items-center gap-2">
-            <Plus className="w-5 h-5 text-cyan-400" /> {tradeToEdit ? 'Edit Trade' : 'Log New Trade'}
-          </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+            <Card noPadding>
+                <div className="p-6 border-b border-white/5">
+                    <h3 className="text-lg font-medium text-white flex items-center gap-2">
+                        <HeartHandshake className="text-[#3CFF64]" size={20} /> Trade Review & Corrections
+                    </h3>
+                </div>
+                <div className="divide-y divide-white/5">
+                    {mistakeTrades.map(trade => (
+                        <div key={trade.id} className="p-6 hover:bg-[#1A1D21] transition-colors">
+                            <div className="flex justify-between items-start mb-3">
+                                <div>
+                                    <div className="flex items-center gap-3 mb-1">
+                                        <span className="text-white font-bold">{trade.pair}</span>
+                                        <span className="text-xs text-gray-500">{trade.date}</span>
+                                    </div>
+                                    <Badge type="loss">{trade.mistake}</Badge>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <span className={`font-mono font-bold ${trade.pnl > 0 ? 'text-[#3CFF64]' : 'text-[#FF4D4D]'}`}>
+                                        {trade.pnl > 0 ? '+' : ''}${trade.pnl.toFixed(2)}
+                                    </span>
+                                    <IconButton icon={Pencil} onClick={() => onEdit(trade)} />
+                                </div>
+                            </div>
+                            <div className="bg-[#0C0F14] p-3 rounded-lg border border-white/5">
+                                <p className="text-[10px] text-gray-500 uppercase font-bold mb-1">Corrective Action</p>
+                                <p className="text-sm text-gray-300 italic">
+                                    {trade.learnings || "No corrective action recorded. Edit trade to add."}
+                                </p>
+                            </div>
+                        </div>
+                    ))}
+                    {mistakeTrades.length === 0 && (
+                        <div className="p-8 text-center text-gray-500">No mistakes logged. Keep it up!</div>
+                    )}
+                </div>
+            </Card>
         </div>
-        
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto max-h-[calc(95vh-120px)]">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500 uppercase">Date</label>
-              <input type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500 uppercase">Pair</label>
-              <input type="text" value={formData.pair} onChange={e => setFormData({...formData, pair: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500 uppercase">Direction</label>
-              <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none">
-                <option>Long</option>
-                <option>Short</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500 uppercase">Session</label>
-              <select value={formData.session} onChange={e => setFormData({...formData, session: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none">
-                <option value="">Select Session...</option>
-                {SESSIONS.map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-          </div>
+    );
+};
 
-          <div className="grid grid-cols-3 gap-4 bg-white/5 p-4 rounded-lg border border-white/5">
-            <div className="space-y-1">
-              <label className="text-xs text-cyan-400 uppercase">Entry Price</label>
-              <input type="number" step="0.0001" value={formData.entry} onChange={e => setFormData({...formData, entry: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-cyan-500 outline-none" placeholder="0.0000" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-purple-400 uppercase">Exit Price</label>
-              <input type="number" step="0.0001" value={formData.exit} onChange={e => setFormData({...formData, exit: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-purple-500 outline-none" placeholder="0.0000" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-emerald-400 uppercase">Realized PnL ($)</label>
-              <input type="number" value={formData.pnl} onChange={e => setFormData({...formData, pnl: e.target.value})} className="w-full bg-transparent border-b border-white/10 p-1 text-lg font-light text-white focus:border-emerald-500 outline-none" placeholder="0.00" />
-            </div>
-          </div>
-          
-          <div className="space-y-2">
-            <label className="text-xs text-gray-500 uppercase">Notes / Review</label>
-            <textarea value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} rows="4" className="w-full bg-black/30 border border-white/10 rounded p-3 text-sm text-white focus:border-cyan-500 outline-none" placeholder="What were your thoughts before, during, and after the trade?"></textarea>
-          </div>
+// --- 📝 TRADE LIST & MODAL ---
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500 uppercase">Strategy / Setup</label>
-              <select value={formData.setup} onChange={e => setFormData({...formData, setup: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-cyan-500 outline-none">
-                <option value="">Select Setup...</option>
-                {STRATEGIES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500 uppercase">Mistake Made?</label>
-              <select value={formData.mistake} onChange={e => setFormData({...formData, mistake: e.target.value})} className="w-full bg-black/30 border border-white/10 rounded p-2 text-sm text-white focus:border-rose-500 outline-none">
-                <option value="">No Mistake</option>
-                {MISTAKE_TYPES.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-          </div>
-                    
-                    {/* NEW FIELD: Corrective Action */}
-                    <div className="space-y-2">
-            <label className="text-xs text-gray-500 uppercase">Learnings / Corrective Action</label>
-            <textarea 
-                            value={formData.learnings} 
-                            onChange={e => setFormData({...formData, learnings: e.target.value})} 
-                            rows="2" 
-                            className="w-full bg-black/30 border border-white/10 rounded p-3 text-sm text-white focus:border-emerald-500 outline-none" 
-                            placeholder="What rule will you implement to prevent this mistake in the future? (e.g., 'Must wait for candle close on 4H before entry')"
-                        ></textarea>
-          </div>
-                    {/* End NEW FIELD */}
-
-          <div className="space-y-2">
-            <label className="text-xs text-gray-500 uppercase">Tags (Press Enter)</label>
-            <div className="flex flex-wrap gap-2 p-2 bg-black/30 border border-white/10 rounded min-h-[40px]">
-              {formData.tags.map((tag, idx) => (
-                <span key={idx} className="text-xs bg-cyan-500/20 text-cyan-300 px-2 py-1 rounded flex items-center gap-1">
-                  {tag} 
-                  <button type="button" onClick={() => handleTagRemove(idx)} className="text-cyan-300/80 hover:text-white transition-colors p-0.5 rounded-full"><X className="w-3 h-3"/></button>
+const TradeList = ({ trades, onEdit, onDelete }) => {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#131619]">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-white/5">
+            <th className="p-4 pl-6">Date</th>
+            <th className="p-4">Pair</th>
+            <th className="p-4">Type</th>
+            <th className="p-4">Setup</th>
+            <th className="p-4 text-right">PnL</th>
+            <th className="p-4 text-center">Status</th>
+            <th className="p-4 text-right pr-6">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="text-sm text-gray-300">
+          {trades.map((trade) => (
+            <tr key={trade.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+              <td className="p-4 pl-6 font-mono text-gray-400">{trade.date}</td>
+              <td className="p-4 font-medium text-white">{trade.pair}</td>
+              <td className="p-4">
+                <span className={`text-xs font-medium px-2 py-0.5 rounded ${trade.type === 'Long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                  {trade.type}
                 </span>
-              ))}
-              <input type="text" value={activeTagInput} onChange={e => setActiveTagInput(e.target.value)} onKeyDown={handleTagAdd} className="bg-transparent outline-none text-sm text-white flex-1 min-w-[100px]" placeholder="Add tag..." />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-xs text-gray-500 uppercase">Screenshot</label>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleScreenshotUpload}
-              className="hidden"
-            />
-            <div className="flex items-center gap-4">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="flex items-center gap-2 text-gray-400 hover:text-cyan-400 transition-colors text-sm disabled:opacity-50"
-              >
-                <Camera className="w-4 h-4" />  
-                {uploading ? 'Uploading...' : (formData.screenshot_url ? 'Change Screenshot' : 'Attach Screenshot')}
-              </button>
-              {formData.screenshot_url && (
-                <a href={formData.screenshot_url} target="_blank" rel="noopener noreferrer">
-                  <img src={formData.screenshot_url} alt="Preview" className="w-16 h-16 rounded object-cover border border-white/10" />
-                </a>
-              )}
-              {screenshotFile && !formData.screenshot_url && (
-                <span className="text-xs text-gray-500">Selected: {screenshotFile.name}</span>
-              )}
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-white/5 flex justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded text-sm text-gray-400 hover:bg-white/5 transition-colors">Cancel</button>
-            <button type="submit" className="px-6 py-2 rounded bg-gradient-to-r from-cyan-600 to-blue-600 text-white text-sm font-medium hover:shadow-[0_0_20px_rgba(8,145,178,0.4)] transition-shadow flex items-center gap-2">
-              <Save className="w-4 h-4" /> {tradeToEdit ? 'Update' : 'Save'} Trade
-            </button>
-          </div>
-        </form>
-      </GlassCard>
+              </td>
+              <td className="p-4 text-gray-400">{trade.setup || '-'}</td>
+              <td className={`p-4 text-right font-mono font-medium ${trade.pnl > 0 ? 'text-[#3CFF64]' : trade.pnl < 0 ? 'text-[#FF4D4D]' : 'text-gray-400'}`}>
+                {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+              </td>
+              <td className="p-4 text-center">
+                <Badge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</Badge>
+              </td>
+              <td className="p-4 pr-6 text-right">
+                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <IconButton icon={Pencil} onClick={() => onEdit(trade)} />
+                  <IconButton icon={Trash2} onClick={() => onDelete(trade)} variant="danger" />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {trades.length === 0 && (
+        <div className="p-12 text-center text-gray-500 text-sm">No trades found. Start journaling.</div>
+      )}
     </div>
   );
 };
 
-const DeleteConfirmationModal = ({ isOpen, onClose, onConfirm, trade }) => {
-  if (!isOpen) return null;
-  
-  const handleDelete = async () => {
-    if (trade?.screenshot_url) {
-      try {
-        const fileNamePath = trade.screenshot_url.split('/public/')[1];
-        await supabase.storage.from('screenshots').remove([fileNamePath]);  
-      } catch (error) {
-        console.error('Error deleting screenshot:', error);
-      }
+const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
+  const [formData, setFormData] = useState({
+    pair: 'EUR/AUD', type: 'Long', setup: '', entry: '', exit: '', pnl: '', 
+    mistake: '', learnings: '', notes: '', tags: [], session: '', 
+    date: new Date().toISOString().split('T')[0], screenshot_url: null
+  });
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setFormData(tradeToEdit ? { 
+        ...tradeToEdit, 
+        pnl: tradeToEdit.pnl.toString(),
+        entry: tradeToEdit.entry.toString(),
+        exit: tradeToEdit.exit.toString(),
+        mistake: tradeToEdit.mistake || '',
+        learnings: tradeToEdit.learnings || '',
+        setup: tradeToEdit.setup || '',
+        session: tradeToEdit.session || '',
+        screenshot_url: tradeToEdit.screenshot_url || null
+      } : { 
+        pair: 'EUR/AUD', type: 'Long', setup: '', entry: '', exit: '', pnl: '', 
+        mistake: '', learnings: '', notes: '', tags: [], session: '', 
+        date: new Date().toISOString().split('T')[0], screenshot_url: null
+      });
     }
-    onConfirm();
+  }, [isOpen, tradeToEdit]);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const pnlVal = parseFloat(formData.pnl);
+    onSave({
+      ...formData,
+      pnl: isNaN(pnlVal) ? 0 : pnlVal,
+      entry: parseFloat(formData.entry) || 0,
+      exit: parseFloat(formData.exit) || 0,
+      mistake: formData.mistake || null,
+      setup: formData.setup || null,
+      session: formData.session || null,
+      learnings: formData.learnings || null,
+      outcome: (isNaN(pnlVal) ? 0 : pnlVal) >= 0 ? 'WIN' : 'LOSS',
+      id: tradeToEdit ? tradeToEdit.id : Date.now()
+    });
   };
+
+  const handleScreenshot = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${user.id}/${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('screenshots').upload(path, file);
+      if (error) throw error;
+      const { data } = supabase.storage.from('screenshots').getPublicUrl(path);
+      setFormData(p => ({ ...p, screenshot_url: data.publicUrl }));
+    } catch (err) { console.error(err); alert('Upload failed'); }
+  };
+
+  if (!isOpen) return null;
+
+  const InputGroup = ({ label, children }) => (
+    <div className="space-y-1.5">
+      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold ml-1">{label}</label>
+      {children}
+    </div>
+  );
+
+  const inputClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-[#4FF3F9]/50 focus:ring-1 focus:ring-[#4FF3F9]/50 outline-none transition-all placeholder:text-gray-700";
+  const selectClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-[#4FF3F9]/50 outline-none appearance-none cursor-pointer";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <GlassCard className="w-full max-w-md p-6 shadow-2xl shadow-rose-500/10 border-rose-500/20">
-        <div className="flex flex-col items-center text-center space-y-4">
-          <div className="p-3 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400"><Trash2 className="w-8 h-8" /></div>
-          <h3 className="text-xl font-light text-white">Delete Trade Log?</h3>
-          <p className="text-sm text-gray-400">This action cannot be undone. The trade data will be permanently removed from your journal, including any associated image.</p>
-          <div className="flex gap-3 w-full mt-4">
-            <button onClick={onClose} className="flex-1 px-4 py-2 rounded text-sm text-gray-400 hover:bg-white/5 transition-colors">Cancel</button>
-            <button onClick={handleDelete} className="flex-1 px-4 py-2 rounded bg-gradient-to-r from-rose-600 to-red-600 text-white text-sm font-medium hover:shadow-[0_0_20px_rgba(225,29,72,0.4)] transition-shadow">Delete</button>
-          </div>
+      <div className={`w-full max-w-3xl bg-[#131619] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]`}>
+        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-[#131619] to-[#1A1D21]">
+          <h2 className="text-lg font-medium text-white flex items-center gap-2">
+            {tradeToEdit ? <Pencil size={18} className="text-[#4FF3F9]" /> : <Plus size={18} className="text-[#4FF3F9]" />}
+            {tradeToEdit ? 'Edit Trade Log' : 'New Trade Log'}
+          </h2>
+          <IconButton icon={X} onClick={onClose} />
         </div>
-      </GlassCard>
+
+        <form onSubmit={handleSubmit} className="p-8 overflow-y-auto flex-1 space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <InputGroup label="Date">
+              <input type="date" className={inputClass} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+            </InputGroup>
+            <InputGroup label="Pair">
+              <input type="text" className={inputClass} value={formData.pair} onChange={e => setFormData({...formData, pair: e.target.value})} placeholder="EUR/USD" />
+            </InputGroup>
+            <InputGroup label="Direction">
+              <select className={selectClass} value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+                <option>Long</option>
+                <option>Short</option>
+              </select>
+            </InputGroup>
+            <InputGroup label="Session">
+              <select className={selectClass} value={formData.session} onChange={e => setFormData({...formData, session: e.target.value})}>
+                <option value="">Select...</option>
+                {['Asian', 'London', 'NYC', 'Close'].map(s => <option key={s}>{s}</option>)}
+              </select>
+            </InputGroup>
+          </div>
+
+          <div className="p-5 rounded-xl bg-[#0C0F14]/50 border border-white/5 grid grid-cols-3 gap-6">
+            <InputGroup label="Entry Price">
+              <input type="number" step="0.00001" className={inputClass} value={formData.entry} onChange={e => setFormData({...formData, entry: e.target.value})} placeholder="0.00000" />
+            </InputGroup>
+            <InputGroup label="Exit Price">
+              <input type="number" step="0.00001" className={inputClass} value={formData.exit} onChange={e => setFormData({...formData, exit: e.target.value})} placeholder="0.00000" />
+            </InputGroup>
+            <InputGroup label="Realized PnL ($)">
+              <input 
+                type="number" 
+                className={`${inputClass} font-mono font-medium ${parseFloat(formData.pnl) > 0 ? 'text-[#3CFF64] border-[#3CFF64]/30' : parseFloat(formData.pnl) < 0 ? 'text-[#FF4D4D] border-[#FF4D4D]/30' : ''}`} 
+                value={formData.pnl} 
+                onChange={e => setFormData({...formData, pnl: e.target.value})} 
+                placeholder="0.00" 
+              />
+            </InputGroup>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <InputGroup label="Strategy / Setup">
+              <select className={selectClass} value={formData.setup} onChange={e => setFormData({...formData, setup: e.target.value})}>
+                <option value="">Select Strategy...</option>
+                {['Break & Retest', 'Liquidity Sweep', 'Supply/Demand', 'Trend Continuation', 'Gap Fill'].map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </InputGroup>
+            <InputGroup label="Mistake (If Any)">
+              <select className={`${selectClass} ${formData.mistake ? 'border-[#FF4D4D]/50 text-[#FF4D4D]' : ''}`} value={formData.mistake} onChange={e => setFormData({...formData, mistake: e.target.value})}>
+                <option value="">No Mistake</option>
+                {['FOMO', 'Revenge', 'Over-leveraging', 'Poor Execution', 'Early Exit', 'No Stop Loss'].map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+            </InputGroup>
+          </div>
+
+          <InputGroup label="Learnings / Corrective Action">
+            <textarea rows="2" className={inputClass} value={formData.learnings} onChange={e => setFormData({...formData, learnings: e.target.value})} placeholder="Corrective measure for next time..." />
+          </InputGroup>
+
+          <div className="border border-dashed border-white/10 rounded-xl p-4 flex items-center gap-4 hover:bg-white/5 transition-colors relative group">
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleScreenshot} className="hidden" />
+            <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center text-gray-400 group-hover:text-[#4FF3F9] group-hover:bg-[#4FF3F9]/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+              <Camera size={20} />
+            </div>
+            {formData.screenshot_url ? (
+              <div className="flex items-center gap-2">
+                <img src={formData.screenshot_url} className="h-12 w-12 rounded object-cover border border-white/20" />
+                <span className="text-xs text-[#3CFF64]">Image Attached</span>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-500 cursor-pointer" onClick={() => fileInputRef.current?.click()}>Click to upload chart screenshot</div>
+            )}
+          </div>
+
+        </form>
+
+        <div className="p-6 border-t border-white/5 flex justify-end gap-3 bg-[#0C0F14]">
+          <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors">Cancel</button>
+          <button onClick={handleSubmit} className="px-8 py-2.5 rounded-xl bg-[#3CFF64] text-black text-sm font-bold hover:shadow-[0_0_20px_rgba(60,255,100,0.3)] transition-all">
+            Save Trade
+          </button>
+        </div>
+      </div>
     </div>
   );
 };
 
 const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
   const [newBalance, setNewBalance] = useState(currentBalance);
+  
   useEffect(() => { if(isOpen) setNewBalance(currentBalance); }, [isOpen, currentBalance]);
-  
   if (!isOpen) return null;
-  
-  const handleSubmit = (e) => { 
-    e.preventDefault(); 
-    onUpdate(parseFloat(newBalance)); 
-    onClose();  
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onUpdate(parseFloat(newBalance));
+    onClose();
   };
-  
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <GlassCard className="w-full max-w-sm p-6 shadow-2xl shadow-blue-500/10 border-blue-500/20">
-        <div className="flex flex-col space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-light text-white">Update Account Balance</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-white"><X className="w-5 h-5" /></button>
+      <Card className="w-full max-w-sm bg-[#131619] shadow-2xl" noPadding>
+        <div className="p-6 border-b border-white/5 flex justify-between items-center">
+          <h3 className="text-lg font-medium text-white">Update Account Balance</h3>
+          <IconButton icon={X} onClick={onClose} />
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="space-y-1.5">
+            <label className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">Current Equity ($)</label>
+            <input 
+              type="number" step="0.01" 
+              value={newBalance} 
+              onChange={e => setNewBalance(e.target.value)} 
+              className="w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-lg font-mono text-[#4FF3F9] focus:border-[#4FF3F9]/50 outline-none" 
+              autoFocus 
+            />
           </div>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs text-gray-500 uppercase">Current Equity ($)</label>
-              <input type="number" step="0.01" value={newBalance} onChange={e => setNewBalance(e.target.value)} className="w-full bg-black/30 border border-white/10 rounded p-2 text-lg font-light text-white focus:border-blue-500 outline-none" autoFocus />
-            </div>
-            <button type="submit" className="w-full py-2 rounded bg-gradient-to-r from-blue-600 to-cyan-600 text-white text-sm font-medium hover:shadow-[0_0_20px_rgba(37,99,235,0.4)] transition-shadow">Update Balance</button>
-          </form>
-        </div>
-      </GlassCard>
+          <button type="submit" className="w-full py-2.5 rounded-xl bg-[#4FF3F9] text-black font-bold text-sm hover:bg-[#3BD2D8] transition-all">
+            Update Balance
+          </button>
+        </form>
+      </Card>
     </div>
   );
 };
 
-const JournalList = ({ trades, onEdit, onDelete }) => {
-  const [filter, setFilter] = useState('');
-  const filteredTrades = trades.filter(t => 
-    t.pair.toLowerCase().includes(filter.toLowerCase()) ||  
-    t.setup?.toLowerCase().includes(filter.toLowerCase()) // Added optional chaining for setup
-  );
+// --- 📱 MAIN APP COMPONENT ---
 
-  return (
-    <div className="space-y-4 animate-in fade-in duration-500">
-      <div className="flex justify-between items-center mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-500" />
-          <input  
-            type="text" 
-            placeholder="Search pair, setup..." 
-            className="bg-black/30 border border-white/10 rounded-full pl-10 pr-4 py-2 text-sm text-gray-200 focus:border-cyan-500 outline-none w-64 transition-all focus:w-80" 
-            value={filter}  
-            onChange={(e) => setFilter(e.target.value)} 
-          />
-        </div>
-        <button className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors">
-          <Filter className="w-4 h-4" /> Advanced Filters
-        </button>
-      </div>
-
-      <GlassCard className="overflow-x-auto">
-        {filteredTrades.length > 0 ? (
-          <table className="w-full border-collapse text-left">
-            <thead>
-              <tr className="text-xs text-gray-500 border-b border-white/5 uppercase tracking-wider">
-                <th className="p-4 font-medium">Date</th>
-                <th className="p-4 font-medium">Pair/Type</th>
-                <th className="p-4 font-medium">Setup</th>
-                <th className="p-4 font-medium">Outcome</th>
-                <th className="p-4 font-medium">PnL</th>
-                <th className="p-4 font-medium">Tags</th>
-                <th className="p-4 font-medium">Screenshot</th>
-                <th className="p-4 font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="text-sm text-gray-300">
-              {filteredTrades.map((trade) => (
-                <tr key={trade.id} className="border-b border-white/5 hover:bg-white/5 transition-colors group">
-                  <td className="p-4 font-mono text-xs text-gray-400">{trade.date}</td>
-                  <td className="p-4">
-                    <div className="font-medium text-white">{trade.pair}</div>
-                    <span className={`text-xs ${trade.type === 'Long' ? 'text-emerald-400' : 'text-rose-400'}`}>{trade.type}</span>
-                  </td>
-                  <td className="p-4">
-                    <span className="text-gray-300">{trade.setup || 'N/A'}</span>
-                    {trade.mistake && <div className="text-xs text-rose-400 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> {trade.mistake}</div>}
-                  </td>
-                  <td className="p-4"><NeonBadge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</NeonBadge></td>
-                  <td className="p-4 font-mono"><span className={trade.pnl > 0 ? 'text-emerald-400' : 'text-rose-400'}>{trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}</span></td>
-                  <td className="p-4">
-                    <div className="flex flex-wrap gap-1">
-                      {trade.tags?.map(tag => <span key={tag} className="text-[10px] bg-white/5 px-2 py-1 rounded text-gray-400">{tag}</span>)}
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    {trade.screenshot_url ? (
-                      <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="inline-block" title="View Screenshot">
-                        <img src={trade.screenshot_url} alt="Trade screenshot" className="w-12 h-12 rounded border border-white/10 object-cover hover:opacity-80 transition-opacity" />
-                      </a>
-                    ) : (
-                      <span className="text-gray-600 text-xs">N/A</span>
-                    )}
-                  </td>
-                  <td className="p-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => onEdit(trade)} className="p-2 rounded-md text-gray-400 hover:text-cyan-400 hover:bg-white/5 transition-colors" title="Edit Trade"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => onDelete(trade)} className="p-2 rounded-md text-gray-400 hover:text-rose-400 hover:bg-white/5 transition-colors" title="Delete Trade"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <div className="text-center py-12 text-gray-600"><p className="text-sm">No trades found. Start journaling your journey!</p></div>
-        )}
-      </GlassCard>
-    </div>
-  );
-};
-
-// --- Main App Component (CLOUD-ENABLED) ---
 const App = () => {
-  const { user, signOut } = useAuth()
-  const [currentView, setCurrentView] = useState(() => localStorage.getItem('muye_current_view') || 'dashboard')
-  const [trades, setTrades] = useState([])
-  const [startingBalance, setStartingBalance] = useState(0) 
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [tradeToEdit, setTradeToEdit] = useState(null)
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
-  const [isBalanceModalOpen, setIsBalanceModalOpen] = useState(false)
-  const [tradeToDelete, setTradeToDelete] = useState(null)
+  const { user, signOut } = useAuth();
+  const [currentView, setCurrentView] = useState(() => localStorage.getItem('muye_view') || 'dashboard');
+  const [trades, setTrades] = useState([]);
+  const [balance, setBalance] = useState(5000);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [balanceModalOpen, setBalanceModalOpen] = useState(false);
+  const [editTrade, setEditTrade] = useState(null);
 
-  // Persist view state to local storage
+  // Load Data
   useEffect(() => {
-    localStorage.setItem('muye_current_view', currentView);
-  }, [currentView]);
-
-
-  // Load trades from Supabase
-  useEffect(() => {
-    if (!user) return
-    loadTrades()
-  }, [user])
-
-  const loadTrades = async () => {
-    const { data, error } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false })
-    
-    if (error) console.error('Error loading trades:', error)
-    else setTrades(data || [])
-  }
-
-  // Load balance from Supabase
-  useEffect(() => {
-    if (!user) return
-    loadBalance()
-  }, [user])
-
-  const loadBalance = async () => {
-    let { data, error } = await supabase
-      .from('user_settings')
-      .select('starting_balance')
-      .eq('user_id', user.id)
-      .single()
-
-    if (error && error.code === 'PGRST116') {
-        const defaultBalance = 5000;  
-        
-        const { error: upsertError } = await supabase
-          .from('user_settings')
-          .upsert({ user_id: user.id, starting_balance: defaultBalance }, { onConflict: 'user_id' })
-        
-        if (upsertError) {
-          console.error('Error creating default balance row:', upsertError);
-        } else {
-          setStartingBalance(defaultBalance);
-        }
-        
-    } else if (error) {
-        console.error('Error loading balance:', error)
-    }
-    else if (data) {
-        setStartingBalance(data.starting_balance)
-    }
-  }
-
-  // Save balance to Supabase
-  const handleBalanceUpdate = async (newCurrentBalance) => {
-    const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0); // Recalculate PnL
-    const newStartingBalance = newCurrentBalance - totalPnL
-    setStartingBalance(newStartingBalance)
-    
-    const { error } = await supabase
-      .from('user_settings')
-      .upsert({ user_id: user.id, starting_balance: newStartingBalance }, { onConflict: 'user_id' })
+    if (!user) return;
+    const fetchData = async () => {
+      const { data } = await supabase.from('trades').select('*').eq('user_id', user.id).order('date', { ascending: false });
+      if (data) setTrades(data);
       
-    if (error) console.error('Error updating balance:', error)
-  }
+      const { data: settings } = await supabase.from('user_settings').select('starting_balance').eq('user_id', user.id).single();
+      if (settings) setBalance(settings.starting_balance);
+    };
+    fetchData();
+  }, [user]);
 
-  // Save trade to Supabase
-  const handleSaveTrade = async (tradeData) => {
-    const trade = {
-      ...tradeData,
-      user_id: user.id,
-      created_at: new Date().toISOString()
-    }
+  useEffect(() => localStorage.setItem('muye_view', currentView), [currentView]);
 
-    if (tradeToEdit) {
-      const { error } = await supabase
-        .from('trades')
-        .update(trade)
-        .eq('id', tradeData.id)
-      
-      if (error) console.error('Error updating trade:', error)
+  // Handlers
+  const handleSave = async (trade) => {
+    const payload = { ...trade, user_id: user.id };
+    if (trade.id && trades.find(t => t.id === trade.id)) {
+      await supabase.from('trades').update(payload).eq('id', trade.id);
     } else {
-      const { error } = await supabase
-        .from('trades')
-        .insert([trade])
-      
-      if (error) console.error('Error inserting trade:', error)
+      await supabase.from('trades').insert([payload]);
     }
+    const { data } = await supabase.from('trades').select('*').eq('user_id', user.id).order('date', { ascending: false });
+    setTrades(data || []);
+    setModalOpen(false);
+    setEditTrade(null);
+  };
 
-    loadTrades()
-    setIsModalOpen(false)
-    setTradeToEdit(null)
-  }
-
-  const handleDeleteClick = (trade) => {
-    setTradeToDelete(trade)
-    setIsDeleteModalOpen(true)
-  }
-
-  const confirmDelete = async () => {
-    // First delete the database row
-    const { error: dbError } = await supabase
-      .from('trades')
-      .delete()
-      .eq('id', tradeToDelete?.id)
-    
-    if (dbError) console.error('Error deleting trade:', dbError)
-    else {
-      // Then delete screenshot from storage if it exists
-      if (tradeToDelete?.screenshot_url) {
-        try {
-          const fileNamePath = tradeToDelete.screenshot_url.split('/public/')[1]; 
-          await supabase.storage.from('screenshots').remove([fileNamePath]);  
-        } catch (error) {
-          // We only log the error here, as the DB row is already gone
-          console.error('Error deleting screenshot:', error);
-        }
-      }
-      loadTrades()
+  const handleDelete = async (trade) => {
+    if(!confirm("Are you sure you want to delete this trade log? This action cannot be undone.")) return;
+    await supabase.from('trades').delete().eq('id', trade.id);
+    if (trade.screenshot_url) {
+      const path = trade.screenshot_url.split('/public/')[1];
+      if(path) await supabase.storage.from('screenshots').remove([path]);
     }
-    
-    setIsDeleteModalOpen(false)
-    setTradeToDelete(null)
-  }
+    setTrades(prev => prev.filter(t => t.id !== trade.id));
+  };
 
-  const handleEditTrade = (trade) => {
-    setTradeToEdit(trade)
-    setIsModalOpen(true)
-  }
+  const handleBalanceUpdate = async (newCurrentBalance) => {
+    const kpis = getKPIs(trades);
+    const newStartingBalance = newCurrentBalance - kpis.totalPnL;
+    setBalance(newStartingBalance);
+    await supabase.from('user_settings').upsert({ user_id: user.id, starting_balance: newStartingBalance }, { onConflict: 'user_id' });
+  };
 
-  const openNewTradeModal = () => {
-    setTradeToEdit(null)
-    setIsModalOpen(true)
-  }
+  if (!user) return <Auth />;
+
+  const kpis = getKPIs(trades);
+  const currentBalance = balance + kpis.totalPnL;
 
   const renderContent = () => {
-    switch(currentView) {
-      case 'dashboard': return <Dashboard trades={trades} />
-      case 'journal': return <JournalList trades={trades} onEdit={handleEditTrade} onDelete={handleDeleteClick} />
-      // Pass handleEditTrade so the mistake review list can link back to the entry modal
-      case 'mistakes': return <Mistakes trades={trades} onEdit={handleEditTrade} /> 
-      case 'analytics': return <Analytics trades={trades} />
-      default: return <Dashboard trades={trades} />
+    if (currentView === 'dashboard') {
+      return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          {/* KPI Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <StatsWidget label="Net PnL" value={formatCurrency(kpis.totalPnL)} icon={Wallet} accentColor={THEME.accent.green} trend={kpis.totalPnL > 0 ? 12 : -5} />
+            <StatsWidget label="Win Rate" value={`${kpis.winRate.toFixed(1)}%`} subValue={`${Math.round(kpis.totalTrades * (kpis.winRate/100))}W / ${kpis.totalTrades - Math.round(kpis.totalTrades * (kpis.winRate/100))}L`} icon={Target} accentColor={THEME.accent.purple} />
+            <StatsWidget label="Profit Factor" value={`${kpis.rr.toFixed(2)}`} icon={TrendingUp} accentColor={THEME.accent.cyan} />
+            <StatsWidget label="Total Trades" value={kpis.totalTrades} icon={BarChart3} accentColor={THEME.accent.yellow} />
+          </div>
+          
+          {/* Charts Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto">
+            <CalendarWidget trades={trades} />
+            <EquityCurveWidget trades={trades} />
+          </div>
+        </div>
+      );
     }
-  }
+    
+    if (currentView === 'journal') return <TradeList trades={trades} onEdit={(t)=>{setEditTrade(t); setModalOpen(true)}} onDelete={handleDelete} />;
+    
+    if (currentView === 'analytics') return <AnalyticsView trades={trades} />;
 
-  const totalPnL = useMemo(() => trades.reduce((acc, t) => acc + t.pnl, 0), [trades])
-  const currentBalance = startingBalance + totalPnL
-
-  // Show auth screen if not logged in
-  if (!user) return <Auth />
+    if (currentView === 'mistakes') return <MistakesView trades={trades} onEdit={(t)=>{setEditTrade(t); setModalOpen(true)}} />;
+    
+    return <div className="text-center text-gray-500 py-20">Module under renovation.</div>;
+  };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-gray-100 font-sans">
+    <div className={`min-h-screen ${THEME.bg} text-white font-sans selection:bg-[#A479FF]/30`}>
       <div className="flex h-screen overflow-hidden">
-        <aside className="w-20 lg:w-64 border-r border-white/5 flex flex-col bg-black/40 backdrop-blur-xl z-20">
-          <div className="p-4 flex items-center justify-center lg:justify-start gap-2 h-20 border-b border-white/5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center font-bold text-black text-sm">M</div>
-            <span className="hidden lg:block text-lg font-light text-white tracking-wide">MyJournal</span>
-          </div>
-          <nav className="p-4 flex-1">
-            <ul className="space-y-2">
-              <li>
-                <button onClick={() => setCurrentView('dashboard')} className={`w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors ${currentView === 'dashboard' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-400'}`}>
-                  <LayoutDashboard className="w-5 h-5" />
-                  <span className="hidden lg:block text-sm">Dashboard</span>
-                </button>
-              </li>
-              <li>
-                <button onClick={() => setCurrentView('journal')} className={`w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors ${currentView === 'journal' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-400'}`}>
-                  <BookOpen className="w-5 h-5" />
-                  <span className="hidden lg:block text-sm">Journal</span>
-                </button>
-              </li>
-              <li>
-                <button onClick={() => setCurrentView('mistakes')} className={`w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors ${currentView === 'mistakes' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-400'}`}>
-                  <AlertTriangle className="w-5 h-5" />
-                  <span className="hidden lg:block text-sm">Mistakes</span>
-                </button>
-              </li>
-              <li>
-                <button onClick={() => setCurrentView('analytics')} className={`w-full flex items-center gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors ${currentView === 'analytics' ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20' : 'text-gray-400'}`}>
-                  <BarChart3 className="w-5 h-5" />
-                  <span className="hidden lg:block text-sm">Analytics</span>
-                </button>
-              </li>
-            </ul>
-          </nav>
-          <div className="p-4 border-t border-white/5 mt-auto">
-            <button onClick={signOut} className="w-full flex items-center gap-2 p-3 rounded-xl text-gray-400 hover:text-white hover:bg-white/5 transition-colors">
-              <LogOut className="w-5 h-5" />
-              <span className="hidden lg:block text-sm">Sign Out</span>
-            </button>
-          </div>
-        </aside>
-
-        <main className="flex-1 overflow-y-auto relative">
-          <div className="absolute inset-0 bg-gradient-radial from-cyan-500/5 via-transparent to-transparent pointer-events-none" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(168,85,247,0.05),transparent_50%)] pointer-events-none" />
-          <header className="sticky top-0 z-10 backdrop-blur-md bg-black/20 border-b border-white/5 h-20 flex items-center justify-between px-8">
-            <h1 className="text-2xl font-thin text-white tracking-tight capitalize">{currentView} View</h1>
-            <div className="flex items-center gap-4">
-              <div className="hidden md:block text-right mr-2">
-                <div className="text-xs text-gray-400">Current Balance</div>
-                <div className="flex items-center justify-end gap-2">
-                  <div className="text-lg font-light text-cyan-400">${currentBalance.toFixed(2)}</div>
-                  <button onClick={() => setIsBalanceModalOpen(true)} className="text-gray-500 hover:text-white transition-colors p-1 rounded hover:bg-white/10"><Pencil className="w-3 h-3" /></button>
+        <Sidebar currentView={currentView} setCurrentView={setCurrentView} signOut={signOut} />
+        
+        <main className="flex-1 ml-20 lg:ml-64 flex flex-col overflow-hidden relative">
+          {/* Background Ambient Glows */}
+          <div className="absolute top-0 left-0 w-full h-96 bg-[#A479FF]/5 blur-[100px] pointer-events-none" />
+          
+          {/* Header */}
+          <header className="h-20 flex items-center justify-between px-8 border-b border-white/5 z-10 bg-[#0C0F14]/80 backdrop-blur-sm">
+            <div>
+              <h1 className="text-xl font-semibold tracking-tight capitalize text-white">{currentView}</h1>
+              <p className="text-xs text-gray-500 mt-0.5">Welcome back, Trader.</p>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="text-right hidden md:block">
+                <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Account Equity</div>
+                <div className="flex items-center gap-2 justify-end">
+                  <div className="text-xl font-mono text-[#4FF3F9]">{formatCurrency(currentBalance)}</div>
+                  <button onClick={() => setBalanceModalOpen(true)} className="p-1 rounded-md hover:bg-white/10 text-gray-500 hover:text-white transition-colors"><Pencil size={12}/></button>
                 </div>
               </div>
-              <button onClick={openNewTradeModal} className="bg-cyan-500 hover:bg-cyan-400 text-black font-medium rounded-lg px-4 py-2 flex items-center gap-2 transition-all hover:shadow-[0_0_20px_rgba(6,182,212,0.6)]">
-                <Plus className="w-5 h-5" />
-                <span className="hidden md:block">Log Trade</span>
+              <button 
+                onClick={() => { setEditTrade(null); setModalOpen(true); }}
+                className="bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+              >
+                <Plus size={18} /> <span className="hidden md:inline">New Trade</span>
               </button>
             </div>
           </header>
-          <div className="p-8 relative z-0">{renderContent()}</div>
+
+          {/* Content Scroll Area */}
+          <div className="flex-1 overflow-y-auto p-8 z-10">
+            <div className="max-w-7xl mx-auto">
+              {renderContent()}
+            </div>
+          </div>
         </main>
       </div>
 
-      <JournalEntry isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onSave={handleSaveTrade} tradeToEdit={tradeToEdit} />
-      <DeleteConfirmationModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={confirmDelete} trade={tradeToDelete} />
-      <EditBalanceModal isOpen={isBalanceModalOpen} onClose={() => setIsBalanceModalOpen(false)} currentBalance={currentBalance} onUpdate={handleBalanceUpdate} />
+      {/* Modals */}
+      <TradeModal 
+        isOpen={modalOpen} 
+        onClose={() => setModalOpen(false)} 
+        onSave={handleSave} 
+        tradeToEdit={editTrade} 
+        user={user}
+      />
 
-      <style dangerouslySetInnerHTML={{__html: `.recharts-cartesian-grid-horizontal line, .recharts-cartesian-grid-vertical line { stroke: #334155; opacity: 0.2; }`}} />
+      <EditBalanceModal 
+        isOpen={balanceModalOpen}
+        onClose={() => setBalanceModalOpen(false)}
+        currentBalance={currentBalance}
+        onUpdate={handleBalanceUpdate}
+      />
+      
+      {/* Global CSS for Recharts override */}
+      <style>{`
+        .recharts-tooltip-cursor { fill: rgba(255,255,255,0.05) !important; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { bg: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+      `}</style>
     </div>
-  )
-}
+  );
+};
 
 export default App;
