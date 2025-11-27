@@ -78,14 +78,22 @@ const IconButton = ({ icon: Icon, onClick, variant = "ghost", className = "" }) 
 // --- 📊 ANALYTICS & UTILITIES ---
 
 const TRADEABLE_ASSETS = {
-  'Forex Majors': ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD'],
-  'Forex Minors': ['EUR/AUD', 'NZD/USD', 'EUR/GBP', 'CAD/JPY'],
+  'Forex Majors': [
+    'EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF', 'NZD/USD'
+  ],
+  'Forex Minors (Crosses)': [
+    'EUR/GBP', 'EUR/AUD', 'EUR/CAD', 'EUR/CHF', 'EUR/NZD',
+    'GBP/JPY', 'GBP/AUD', 'GBP/CAD', 'GBP/NZD',
+    'AUD/JPY', 'AUD/CAD', 'AUD/CHF', 'AUD/NZD',
+    'CAD/JPY', 'CHF/JPY', 'NZD/JPY', 'NZD/CAD', 'NZD/CHF'
+  ],
   'Metals': ['XAU/USD (Gold)', 'XAG/USD (Silver)'],
   'Indices': ['US30 (Dow)', 'NAS100 (Nasdaq)', 'SPX500 (S&P 500)'],
   'Cryptos': ['BTC/USD', 'ETH/USD'],
   'Other': ['Custom Pair']
 };
 
+// ... rest of analytics and utilities
 const getKPIs = (trades) => {
   const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
   const wins = trades.filter(t => t.outcome === 'WIN');
