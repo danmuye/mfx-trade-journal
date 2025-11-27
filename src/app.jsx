@@ -250,7 +250,7 @@ const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName
 // --- 🧩 DASHBOARD WIDGETS ---
 
 // --- 🆕 MOBILE NAVIGATION ---
-const MobileNav = ({ currentView, setCurrentView }) => {
+const MobileNav = ({ currentView, setCurrentView, signOut }) => { // ⬅️ UPDATED: Added signOut prop
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
@@ -259,6 +259,7 @@ const MobileNav = ({ currentView, setCurrentView }) => {
   ];
 
   return (
+    // The bottom padding handles the safe area for modern phones
     <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-[#131619]/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center pb-safe pt-3 px-2 pb-2">
       {items.map((item) => {
         const active = currentView === item.id;
@@ -275,6 +276,16 @@ const MobileNav = ({ currentView, setCurrentView }) => {
           </button>
         );
       })}
+      
+      {/* 🟢 FIX: Mobile Sign Out Button */}
+      <button 
+        onClick={signOut} 
+        className="flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-200 text-gray-500 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10"
+      >
+        <LogOut size={22} strokeWidth={2} />
+        <span className="text-[10px] font-medium">Out</span>
+      </button>
+      {/* 🟢 END FIX */}
     </nav>
   );
 };
@@ -288,6 +299,7 @@ const Sidebar = ({ currentView, setCurrentView, signOut }) => {
   ];
 
   return (
+    // Note: This component is hidden on mobile screens by 'hidden md:flex'
     <aside className="hidden md:flex w-64 border-r border-white/5 flex-col bg-[#0C0F14] z-20 fixed h-full transition-all duration-300">
       <div className="h-20 flex items-center justify-start px-6 border-b border-white/5 gap-3">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A479FF] to-[#4FF3F9] flex items-center justify-center text-black font-bold">M</div>
@@ -314,6 +326,7 @@ const Sidebar = ({ currentView, setCurrentView, signOut }) => {
       </nav>
 
       <div className="p-4 border-t border-white/5">
+        {/* Desktop Sign Out Button (Visible here) */}
         <button onClick={signOut} className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10 transition-colors">
           <LogOut size={20} />
           <span className="text-sm font-medium">Sign Out</span>
@@ -672,7 +685,7 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
                       )}
                       {!trade.notes && !trade.mistake && !trade.learnings && (
                          <div className="col-span-3 text-center text-gray-500 p-2">No detailed notes logged for this trade.</div>
-                      )}
+                       )}
                     </div>
                   </td>
                 </tr>
@@ -688,8 +701,10 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
   );
 };
 
+
 const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
-  const initialData = tradeToEdit || {
+  const fileInputRef = useRef(null);
+  const initialFormState = {
     date: new Date().toISOString().split('T')[0],
     pair: 'EUR/USD',
     type: 'Long',
@@ -703,40 +718,42 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
     learnings: '',
     screenshot_url: '',
   };
-  
-  const [formData, setFormData] = useState(initialData);
+
+  const [formData, setFormData] = useState(initialFormState);
   const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    setFormData(initialData);
-  }, [tradeToEdit, isOpen]);
+    if (isOpen) {
+      setFormData(tradeToEdit ? { ...initialFormState, ...tradeToEdit } : initialFormState);
+    }
+  }, [isOpen, tradeToEdit]);
 
-  // Placeholder for screenshot handling (requires implementation)
+  // Start screenshot handler
   const handleScreenshot = async (e) => {
-    const file = e.target.files?.[0];
+    const file = e.target.files[0];
     if (!file || !user) return;
-
     setIsUploading(true);
-    const filePath = `${user.id}/${Date.now()}-${file.name}`;
-    const { data, error } = await supabase.storage
-      .from('screenshots')
-      .upload(filePath, file);
 
-    if (error) {
-      console.error('Upload error:', error);
+    const fileName = `${user.id}/${Date.now()}-${file.name}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('screenshots')
+      .upload(fileName, file);
+
+    if (uploadError) {
+      console.error('Upload Error:', uploadError);
       setIsUploading(false);
       return;
     }
 
     const { data: publicUrlData } = supabase.storage
       .from('screenshots')
-      .getPublicUrl(filePath);
+      .getPublicUrl(fileName); // ⬅️ FIX: Use fileName for the public URL
 
     setFormData(prev => ({ ...prev, screenshot_url: publicUrlData.publicUrl }));
     setIsUploading(false);
   };
-  // End screenshot handler placeholder
+  // End screenshot handler
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -841,10 +858,20 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center text-gray-400 group-hover:text-[#4FF3F9] group-hover:bg-[#4FF3F9]/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Camera size={20} />
             </div>
-            {formData.screenshot_url ? (
+            {isUploading ? (
+                <div className="text-sm text-gray-500">Uploading...</div>
+            ) : formData.screenshot_url ? (
               <div className="flex items-center gap-2">
                 <img src={formData.screenshot_url} className="h-12 w-12 rounded object-cover border border-white/20" />
                 <span className="text-xs text-[#3CFF64]">Image Attached</span>
+                {/* 🟢 FIX: Add button to clear/remove screenshot */}
+                <IconButton 
+                    icon={X} 
+                    onClick={() => setFormData(prev => ({...prev, screenshot_url: ''}))} 
+                    variant="danger"
+                    className="p-1 !rounded-full opacity-70 hover:opacity-100"
+                />
+                {/* 🟢 END FIX */}
               </div>
             ) : (
               <div className="text-sm text-gray-500 cursor-pointer" onClick={() => fileInputRef.current?.click()}>Click to upload chart screenshot</div>
@@ -1045,7 +1072,9 @@ const App = () => {
       <div className="flex h-screen overflow-hidden">
         
         {/* Mobile Nav (Hidden on Desktop) */}
-        <MobileNav currentView={currentView} setCurrentView={setCurrentView} />
+        {/* 🟢 FIX APPLIED: Pass signOut to MobileNav */}
+        <MobileNav currentView={currentView} setCurrentView={setCurrentView} signOut={signOut} />
+        {/* 🟢 END FIX */}
 
         {/* Desktop Sidebar (Hidden on Mobile) */}
         <Sidebar currentView={currentView} setCurrentView={setCurrentView} signOut={signOut} />
