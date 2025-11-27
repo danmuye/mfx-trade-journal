@@ -10,7 +10,8 @@ import {
   AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, 
   Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend 
 } from 'recharts';
-import { supabase, useAuth, Auth } from './supabase';
+// NOTE: Assuming this imports Auth and the client instance
+import { supabase, useAuth, Auth } from './supabase'; 
 
 // --- 🎨 DESIGN SYSTEM & UTILS ---
 const THEME = {
@@ -35,6 +36,17 @@ const THEME = {
 
 const formatCurrency = (value) => 
   new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
+
+const InputGroup = ({ label, children }) => (
+  <div className="space-y-1.5">
+    <label className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">{label}</label>
+    {children}
+  </div>
+);
+
+const inputClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-[#A479FF] outline-none transition-colors";
+const selectClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-[#A479FF] outline-none transition-colors appearance-none pr-8";
+
 
 // --- 🧩 UI PRIMITIVES ---
 
@@ -93,7 +105,6 @@ const TRADEABLE_ASSETS = {
   'Other': ['Custom Pair']
 };
 
-// ... rest of analytics and utilities
 const getKPIs = (trades) => {
   const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
   const wins = trades.filter(t => t.outcome === 'WIN');
@@ -317,7 +328,7 @@ const StatsWidget = ({ label, value, subValue, trend, icon: Icon, accentColor })
     <div className="flex justify-between items-start">
       <div className={`p-2.5 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${accentColor}1A` }}>
         <Icon size={20} style={{ color: accentColor }} />
-      </div>
+        </div>
       {trend && (
         <span className={`flex items-center text-xs font-medium ${trend > 0 ? 'text-[#3CFF64]' : 'text-[#FF4D4D]'}`}>
           {trend > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
@@ -426,7 +437,7 @@ const EquityCurveWidget = ({ trades }) => {
         <h3 className="text-lg font-medium text-white flex items-center gap-2">
           <TrendingUp size={18} className="text-[#A479FF]" /> Equity Curve
         </h3>
-      </div>
+        </div>
       <div className="h-[320px] w-full p-4 pt-8">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
@@ -692,13 +703,7 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
         pnl: tradeToEdit.pnl.toString(),
         entry: tradeToEdit.entry.toString(),
         exit: tradeToEdit.exit.toString(),
-        mistake: tradeToEdit.mistake || '',
-        learnings: tradeToEdit.learnings || '',
-        notes: tradeToEdit.notes || '',
-        setup: tradeToEdit.setup || '',
-        session: tradeToEdit.session || '',
-        screenshot_url: tradeToEdit.screenshot_url || null
-      } : { 
+      } : {
         pair: 'EUR/AUD', type: 'Long', setup: '', entry: '', exit: '', pnl: '', 
         mistake: '', learnings: '', notes: '', tags: [], session: '', 
         date: new Date().toISOString().split('T')[0], screenshot_url: null
@@ -706,57 +711,51 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
     }
   }, [isOpen, tradeToEdit]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const pnlVal = parseFloat(formData.pnl);
-    onSave({
-      ...formData,
-      pnl: isNaN(pnlVal) ? 0 : pnlVal,
-      entry: parseFloat(formData.entry) || 0,
-      exit: parseFloat(formData.exit) || 0,
-      mistake: formData.mistake || null,
-      setup: formData.setup || null,
-      session: formData.session || null,
-      learnings: formData.learnings || null,
-      notes: formData.notes || null,
-      outcome: (isNaN(pnlVal) ? 0 : pnlVal) >= 0 ? 'WIN' : 'LOSS',
-      id: tradeToEdit ? tradeToEdit.id : Date.now()
-    });
+  // Helper for image upload (Stub - requires implementation of upload function)
+  const handleScreenshot = async (event) => {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const filePath = `${user.id}/${Date.now()}_${file.name}`;
+      const { data, error } = await supabase.storage
+          .from('screenshots')
+          .upload(filePath, file);
+
+      if (error) {
+          console.error('Upload Error:', error);
+          alert('Image upload failed.');
+          return;
+      }
+
+      // Get public URL
+      const { data: publicUrlData } = supabase.storage
+          .from('screenshots')
+          .getPublicUrl(filePath);
+
+      setFormData(prev => ({ ...prev, screenshot_url: publicUrlData.publicUrl }));
   };
 
-  const handleScreenshot = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const ext = file.name.split('.').pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('screenshots').upload(path, file);
-      if (error) throw error;
-      const { data } = supabase.storage.from('screenshots').getPublicUrl(path);
-      setFormData(p => ({ ...p, screenshot_url: data.publicUrl }));
-    } catch (err) { console.error(err); alert('Upload failed'); }
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    // Basic validation and formatting before save
+    const finalData = {
+      ...formData,
+      pnl: parseFloat(formData.pnl || 0),
+      entry: parseFloat(formData.entry || 0),
+      exit: parseFloat(formData.exit || 0),
+      outcome: (parseFloat(formData.pnl) || 0) > 0 ? 'WIN' : (parseFloat(formData.pnl) || 0) < 0 ? 'LOSS' : 'BREAKEVEN'
+    };
+    onSave(finalData);
   };
 
   if (!isOpen) return null;
 
-  const InputGroup = ({ label, children }) => (
-    <div className="space-y-1.5">
-      <label className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold ml-1">{label}</label>
-      {children}
-    </div>
-  );
-
-  const inputClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-[#4FF3F9]/50 focus:ring-1 focus:ring-[#4FF3F9]/50 outline-none transition-all placeholder:text-gray-700";
-  const selectClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:border-[#4FF3F9]/50 outline-none appearance-none cursor-pointer";
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className={`w-full max-w-3xl bg-[#131619] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto`}>
-        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-[#131619] to-[#1A1D21]">
-          <h2 className="text-lg font-medium text-white flex items-center gap-2">
-            {tradeToEdit ? <Pencil size={18} className="text-[#4FF3F9]" /> : <Plus size={18} className="text-[#4FF3F9]" />}
-            {tradeToEdit ? 'Edit Trade Log' : 'New Trade Log'}
-          </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-[#131619] shadow-2xl border border-white/10">
+        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#0C0F14]/50 rounded-t-2xl">
+          <h3 className="text-xl font-medium text-white">{tradeToEdit ? 'Edit Trade Log' : 'Log New Trade'}</h3>
           <IconButton icon={X} onClick={onClose} />
         </div>
 
@@ -911,6 +910,34 @@ const App = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [editTrade, setEditTrade] = useState(null);
+
+  // === 🚨 FIX: SUPABASE REDIRECT HANDLER (SOLUTION 1) ===
+  useEffect(() => {
+    // 1. Check for session immediately on component mount (for hash URLs)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session && window.location.hash.includes('access_token')) {
+            console.log('Found token in URL fragment. Redirecting to clean URL.');
+            // Use replace() to remove the hash from history
+            window.location.replace(window.location.origin);
+        }
+    });
+
+    // 2. Also subscribe to auth changes for robustness
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (event, session) => {
+            if (event === 'SIGNED_IN' && session) {
+                console.log('SIGNED_IN event received. Checking URL for hash cleanup.');
+                // Re-run the redirect check if a successful sign-in happens
+                if (window.location.hash.includes('access_token')) {
+                    window.location.replace(window.location.origin);
+                }
+            }
+        }
+    );
+
+    return () => subscription.unsubscribe();
+  }, []);
+  // === 🚨 END FIX ===
 
   // Load Data
   useEffect(() => {
