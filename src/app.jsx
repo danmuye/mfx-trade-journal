@@ -958,7 +958,22 @@ const App = () => {
     await supabase.from('user_settings').upsert({ user_id: user.id, starting_balance: newStartingBalance }, { onConflict: 'user_id' });
   };
 
-  if (!user) return <Auth />;
+  if (!user) {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0C0F14] p-4">
+      <div className="w-full max-w-sm">
+        <h1 className="text-3xl font-bold text-white text-center mb-6">Muye<span className="text-gray-500">FX</span> Login</h1>
+        <Auth
+          supabaseClient={supabase}
+          // 🚨 EXPLICITLY SET PROVIDERS HERE TO EXCLUDE GITHUB
+          providers={['google', 'email']} 
+          appearance={{ theme: { default: { colors: { brand: '#A479FF', brandAccent: '#4FF3F9' } } } }}
+          redirectTo={window.location.origin}
+        />
+      </div>
+    </div>
+  );
+}
 
   const kpis = getKPIs(trades);
   const currentBalance = balance + kpis.totalPnL;
