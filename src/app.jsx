@@ -689,52 +689,54 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
 };
 
 const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
-  const [formData, setFormData] = useState({
-    pair: 'EUR/AUD', type: 'Long', setup: '', entry: '', exit: '', pnl: '', 
-    mistake: '', learnings: '', notes: '', tags: [], session: '', 
-    date: new Date().toISOString().split('T')[0], screenshot_url: null
-  });
+  const initialData = tradeToEdit || {
+    date: new Date().toISOString().split('T')[0],
+    pair: 'EUR/USD',
+    type: 'Long',
+    session: '',
+    entry: '',
+    exit: '',
+    pnl: '',
+    setup: '',
+    mistake: '',
+    notes: '',
+    learnings: '',
+    screenshot_url: '',
+  };
+  
+  const [formData, setFormData] = useState(initialData);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setFormData(tradeToEdit ? { 
-        ...tradeToEdit, 
-        pnl: tradeToEdit.pnl.toString(),
-        entry: tradeToEdit.entry.toString(),
-        exit: tradeToEdit.exit.toString(),
-      } : {
-        pair: 'EUR/AUD', type: 'Long', setup: '', entry: '', exit: '', pnl: '', 
-        mistake: '', learnings: '', notes: '', tags: [], session: '', 
-        date: new Date().toISOString().split('T')[0], screenshot_url: null
-      });
+    setFormData(initialData);
+  }, [tradeToEdit, isOpen]);
+
+  // Placeholder for screenshot handling (requires implementation)
+  const handleScreenshot = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    setIsUploading(true);
+    const filePath = `${user.id}/${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
+      .from('screenshots')
+      .upload(filePath, file);
+
+    if (error) {
+      console.error('Upload error:', error);
+      setIsUploading(false);
+      return;
     }
-  }, [isOpen, tradeToEdit]);
 
-  // Helper for image upload (Stub - requires implementation of upload function)
-  const handleScreenshot = async (event) => {
-      const file = event.target.files[0];
-      if (!file) return;
+    const { data: publicUrlData } = supabase.storage
+      .from('screenshots')
+      .getPublicUrl(filePath);
 
-      const filePath = `${user.id}/${Date.now()}_${file.name}`;
-      const { data, error } = await supabase.storage
-          .from('screenshots')
-          .upload(filePath, file);
-
-      if (error) {
-          console.error('Upload Error:', error);
-          alert('Image upload failed.');
-          return;
-      }
-
-      // Get public URL
-      const { data: publicUrlData } = supabase.storage
-          .from('screenshots')
-          .getPublicUrl(filePath);
-
-      setFormData(prev => ({ ...prev, screenshot_url: publicUrlData.publicUrl }));
+    setFormData(prev => ({ ...prev, screenshot_url: publicUrlData.publicUrl }));
+    setIsUploading(false);
   };
-
+  // End screenshot handler placeholder
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -767,6 +769,7 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             <InputGroup label="Pair">
               {/* UPDATED: Currency Pair Segmented Dropdown */}
               <select className={selectClass} value={formData.pair} onChange={e => setFormData({...formData, pair: e.target.value})}>
+                <option value="" disabled>Select Pair</option>
                 {Object.entries(TRADEABLE_ASSETS).map(([group, pairs]) => (
                   <optgroup key={group} label={group} className="text-gray-400">
                     {pairs.map(pair => (
@@ -992,10 +995,12 @@ const App = () => {
         <h1 className="text-3xl font-bold text-white text-center mb-6">Muye<span className="text-gray-500">FX</span> Login</h1>
         <Auth
           supabaseClient={supabase}
-          // 🚨 EXPLICITLY SET PROVIDERS HERE TO EXCLUDE GITHUB
+          // 🚨 CORRECTION APPLIED: Using window.location.origin + '/' ensures an absolute, clean root path.
+          // This ensures the Supabase OAuth service sends the user back to http://localhost:3000/
+          redirectTo={window.location.origin + '/'} 
+          // NOTE: You should also check if magicLink={true} is needed for email sign-in.
           providers={['google', 'email']} 
           appearance={{ theme: { default: { colors: { brand: '#A479FF', brandAccent: '#4FF3F9' } } } }}
-          redirectTo={window.location.origin}
         />
       </div>
     </div>
