@@ -250,7 +250,7 @@ const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName
 // --- 🧩 DASHBOARD WIDGETS ---
 
 // --- 🆕 MOBILE NAVIGATION ---
-const MobileNav = ({ currentView, setCurrentView, signOut }) => { // ⬅️ UPDATED: Added signOut prop
+const MobileNav = ({ currentView, setCurrentView }) => {
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
@@ -259,7 +259,6 @@ const MobileNav = ({ currentView, setCurrentView, signOut }) => { // ⬅️ UPDA
   ];
 
   return (
-    // The bottom padding handles the safe area for modern phones
     <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-[#131619]/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center pb-safe pt-3 px-2 pb-2">
       {items.map((item) => {
         const active = currentView === item.id;
@@ -276,21 +275,11 @@ const MobileNav = ({ currentView, setCurrentView, signOut }) => { // ⬅️ UPDA
           </button>
         );
       })}
-      
-      {/* 🟢 FIX: Mobile Sign Out Button */}
-      <button 
-        onClick={signOut} 
-        className="flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-200 text-gray-500 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10"
-      >
-        <LogOut size={22} strokeWidth={2} />
-        <span className="text-[10px] font-medium">Out</span>
-      </button>
-      {/* 🟢 END FIX */}
     </nav>
   );
 };
 
-const Sidebar = ({ currentView, setCurrentView, signOut }) => {
+const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { // Updated prop name to triggerSignOut
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
@@ -299,7 +288,6 @@ const Sidebar = ({ currentView, setCurrentView, signOut }) => {
   ];
 
   return (
-    // Note: This component is hidden on mobile screens by 'hidden md:flex'
     <aside className="hidden md:flex w-64 border-r border-white/5 flex-col bg-[#0C0F14] z-20 fixed h-full transition-all duration-300">
       <div className="h-20 flex items-center justify-start px-6 border-b border-white/5 gap-3">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A479FF] to-[#4FF3F9] flex items-center justify-center text-black font-bold">M</div>
@@ -326,8 +314,7 @@ const Sidebar = ({ currentView, setCurrentView, signOut }) => {
       </nav>
 
       <div className="p-4 border-t border-white/5">
-        {/* Desktop Sign Out Button (Visible here) */}
-        <button onClick={signOut} className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10 transition-colors">
+        <button onClick={triggerSignOut} className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10 transition-colors">
           <LogOut size={20} />
           <span className="text-sm font-medium">Sign Out</span>
         </button>
@@ -683,9 +670,37 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
                           <p className="text-gray-300 italic">{trade.learnings}</p>
                         </div>
                       )}
-                      {!trade.notes && !trade.mistake && !trade.learnings && (
+                      {trade.tags && trade.tags.length > 0 && (
+                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#4FF3F9]/20">
+                          <p className="text-[#4FF3F9] font-semibold mb-1 uppercase text-[10px]">Tags</p>
+                          <div className='flex flex-wrap gap-1'>
+                            {trade.tags.map((tag, i) => (
+                              <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-[#4FF3F9]/10 text-[#4FF3F9] font-medium">{tag}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* NEW SCREENSHOT VIEW BUTTON */}
+                      {trade.screenshot_url && (
+                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#A479FF]/20 flex items-center justify-between">
+                          <p className="text-[#A479FF] font-semibold uppercase text-[10px]">Chart Screenshot</p>
+                          <a 
+                            href={trade.screenshot_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center gap-1 text-xs text-[#A479FF] hover:text-white transition-colors"
+                          >
+                            <Camera size={14} /> 
+                            View Image
+                          </a>
+                        </div>
+                      )}
+                      {/* END NEW SCREENSHOT VIEW BUTTON */}
+
+                      {!trade.notes && !trade.mistake && !trade.learnings && (!trade.tags || trade.tags.length === 0) && !trade.screenshot_url && (
                          <div className="col-span-3 text-center text-gray-500 p-2">No detailed notes logged for this trade.</div>
-                       )}
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -701,10 +716,54 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
   );
 };
 
+// --- NEW TAGS INPUT COMPONENT ---
+const TagsInput = ({ tags, setTags, label }) => {
+  const [inputValue, setInputValue] = useState('');
+
+  const handleKeyDown = (e) => {
+    // Check for Enter key
+    if (e.key === 'Enter' && inputValue.trim() !== '') {
+      e.preventDefault(); // Prevent form submission
+      const newTag = inputValue.trim().toLowerCase().replace(/[^a-z0-9\s]/g, ''); // Basic sanitation
+      if (newTag && !tags.includes(newTag)) {
+        setTags([...tags, newTag]);
+      }
+      setInputValue('');
+    }
+  };
+
+  const removeTag = (tagToRemove) => {
+    setTags(tags.filter(tag => tag !== tagToRemove));
+  };
+
+  return (
+    <InputGroup label={label}>
+      <div className="flex flex-wrap gap-2 mb-2 min-h-[36px]">
+        {tags.map((tag, index) => (
+          // Blue/Cyan style applied here
+          <span key={index} className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-[#4FF3F9]/20 text-[#4FF3F9] border border-[#4FF3F9]/30">
+            {tag}
+            <button type="button" onClick={() => removeTag(tag)} className="text-[#4FF3F9] hover:text-white transition-colors p-0.5 rounded-full">
+              <X size={10} strokeWidth={3} /> {/* Small 'x' icon */}
+            </button>
+          </span>
+        ))}
+      </div>
+      <input
+        type="text"
+        className={inputClass}
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Type tag and press Enter to confirm"
+      />
+    </InputGroup>
+  );
+};
+// --- END NEW TAGS INPUT COMPONENT ---
 
 const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
-  const fileInputRef = useRef(null);
-  const initialFormState = {
+  const initialData = tradeToEdit || {
     date: new Date().toISOString().split('T')[0],
     pair: 'EUR/USD',
     type: 'Long',
@@ -717,43 +776,43 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
     notes: '',
     learnings: '',
     screenshot_url: '',
+    tags: [], // Added new tags field
   };
-
-  const [formData, setFormData] = useState(initialFormState);
+  
+  const [formData, setFormData] = useState(initialData);
   const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setFormData(tradeToEdit ? { ...initialFormState, ...tradeToEdit } : initialFormState);
-    }
-  }, [isOpen, tradeToEdit]);
+    // Ensure tags defaults to an array if tradeToEdit exists but tags doesn't
+    setFormData({ ...initialData, tags: tradeToEdit?.tags || [] });
+  }, [tradeToEdit, isOpen]);
 
-  // Start screenshot handler
+  // Placeholder for screenshot handling (requires implementation)
   const handleScreenshot = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file || !user) return;
+
     setIsUploading(true);
-
-    const fileName = `${user.id}/${Date.now()}-${file.name}`;
-
-    const { error: uploadError } = await supabase.storage
+    const filePath = `${user.id}/${Date.now()}-${file.name}`;
+    const { data, error } = await supabase.storage
       .from('screenshots')
-      .upload(fileName, file);
+      .upload(filePath, file);
 
-    if (uploadError) {
-      console.error('Upload Error:', uploadError);
+    if (error) {
+      console.error('Upload error:', error);
       setIsUploading(false);
       return;
     }
 
     const { data: publicUrlData } = supabase.storage
       .from('screenshots')
-      .getPublicUrl(fileName); // ⬅️ FIX: Use fileName for the public URL
+      .getPublicUrl(filePath);
 
     setFormData(prev => ({ ...prev, screenshot_url: publicUrlData.publicUrl }));
     setIsUploading(false);
   };
-  // End screenshot handler
+  // End screenshot handler placeholder
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -842,6 +901,14 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
               </select>
             </InputGroup>
           </div>
+          
+          {/* NEW TAGS INPUT FIELD */}
+          <TagsInput 
+            label="Tags"
+            tags={formData.tags}
+            setTags={(newTags) => setFormData({...formData, tags: newTags})}
+          />
+          {/* END NEW TAGS INPUT FIELD */}
 
           <InputGroup label="Notes / Observations">
             <textarea rows="3" className={inputClass} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Market conditions, thoughts, emotions..." />
@@ -858,20 +925,10 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center text-gray-400 group-hover:text-[#4FF3F9] group-hover:bg-[#4FF3F9]/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
               <Camera size={20} />
             </div>
-            {isUploading ? (
-                <div className="text-sm text-gray-500">Uploading...</div>
-            ) : formData.screenshot_url ? (
+            {formData.screenshot_url ? (
               <div className="flex items-center gap-2">
                 <img src={formData.screenshot_url} className="h-12 w-12 rounded object-cover border border-white/20" />
                 <span className="text-xs text-[#3CFF64]">Image Attached</span>
-                {/* 🟢 FIX: Add button to clear/remove screenshot */}
-                <IconButton 
-                    icon={X} 
-                    onClick={() => setFormData(prev => ({...prev, screenshot_url: ''}))} 
-                    variant="danger"
-                    className="p-1 !rounded-full opacity-70 hover:opacity-100"
-                />
-                {/* 🟢 END FIX */}
               </div>
             ) : (
               <div className="text-sm text-gray-500 cursor-pointer" onClick={() => fileInputRef.current?.click()}>Click to upload chart screenshot</div>
@@ -930,6 +987,45 @@ const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
   );
 };
 
+// --- 🆕 NEW: SIGN OUT CONFIRMATION MODAL ---
+const SignOutConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <Card className="w-full max-w-sm bg-[#131619] shadow-2xl" noPadding>
+        <div className="p-6 border-b border-white/5 flex justify-between items-center">
+          <h3 className="text-lg font-medium text-white flex items-center gap-2">
+            <LogOut size={20} className="text-[#FF4D4D]" /> Confirm Sign Out
+          </h3>
+          <IconButton icon={X} onClick={onClose} />
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-300">
+            Are you sure you want to sign out? You will be logged out of your trading journal.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button 
+              onClick={onClose} 
+              className="px-6 py-2.5 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={onConfirm} 
+              className="px-6 py-2.5 rounded-xl bg-[#FF4D4D] text-white text-sm font-bold hover:bg-[#E03A3A] transition-all"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+// --- END NEW: SIGN OUT CONFIRMATION MODAL ---
+
+
 // --- 📱 MAIN APP COMPONENT ---
 
 const App = () => {
@@ -939,6 +1035,7 @@ const App = () => {
   const [balance, setBalance] = useState(5000);
   const [modalOpen, setModalOpen] = useState(false);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
+  const [signOutModalOpen, setSignOutModalOpen] = useState(false); // New state for sign out modal
   const [editTrade, setEditTrade] = useState(null);
 
   // === 🚨 FIX: SUPABASE REDIRECT HANDLER (SOLUTION 1) ===
@@ -974,7 +1071,8 @@ const App = () => {
     if (!user) return;
     const fetchData = async () => {
       const { data } = await supabase.from('trades').select('*').eq('user_id', user.id).order('date', { ascending: false });
-      if (data) setTrades(data);
+      // Ensure tags field exists and is an array on load
+      if (data) setTrades(data.map(t => ({ ...t, tags: t.tags || [] }))); 
       
       const { data: settings } = await supabase.from('user_settings').select('starting_balance').eq('user_id', user.id).single();
       if (settings) setBalance(settings.starting_balance);
@@ -993,7 +1091,8 @@ const App = () => {
       await supabase.from('trades').insert([payload]);
     }
     const { data } = await supabase.from('trades').select('*').eq('user_id', user.id).order('date', { ascending: false });
-    setTrades(data || []);
+    // Ensure tags field exists and is an array after save
+    setTrades(data ? data.map(t => ({ ...t, tags: t.tags || [] })) : []);
     setModalOpen(false);
     setEditTrade(null);
   };
@@ -1013,6 +1112,16 @@ const App = () => {
     const newStartingBalance = newCurrentBalance - kpis.totalPnL;
     setBalance(newStartingBalance);
     await supabase.from('user_settings').upsert({ user_id: user.id, starting_balance: newStartingBalance }, { onConflict: 'user_id' });
+  };
+  
+  // New Sign Out Handler
+  const handleSignOut = () => {
+    setSignOutModalOpen(true);
+  };
+
+  const confirmSignOut = () => {
+    signOut(); // Execute the actual sign out function
+    setSignOutModalOpen(false);
   };
 
   if (!user) {
@@ -1072,12 +1181,10 @@ const App = () => {
       <div className="flex h-screen overflow-hidden">
         
         {/* Mobile Nav (Hidden on Desktop) */}
-        {/* 🟢 FIX APPLIED: Pass signOut to MobileNav */}
-        <MobileNav currentView={currentView} setCurrentView={setCurrentView} signOut={signOut} />
-        {/* 🟢 END FIX */}
+        <MobileNav currentView={currentView} setCurrentView={setCurrentView} />
 
         {/* Desktop Sidebar (Hidden on Mobile) */}
-        <Sidebar currentView={currentView} setCurrentView={setCurrentView} signOut={signOut} />
+        <Sidebar currentView={currentView} setCurrentView={setCurrentView} triggerSignOut={handleSignOut} />
         
         <main className="flex-1 md:ml-64 flex flex-col overflow-hidden relative mb-16 md:mb-0">
           {/* Background Ambient Glows */}
@@ -1129,6 +1236,13 @@ const App = () => {
         onClose={() => setBalanceModalOpen(false)}
         currentBalance={currentBalance}
         onUpdate={handleBalanceUpdate}
+      />
+      
+      {/* NEW: Sign Out Modal */}
+      <SignOutConfirmationModal
+        isOpen={signOutModalOpen}
+        onClose={() => setSignOutModalOpen(false)}
+        onConfirm={confirmSignOut}
       />
       
       {/* Global CSS for Recharts override */}
