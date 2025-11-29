@@ -703,18 +703,18 @@ const TagsInput = ({ tags, setTags, label }) => {
   const [inputValue, setInputValue] = useState('');
 
   const handleKeyDown = (e) => {
-    // **FIX IMPLEMENTED HERE**: Always prevent default action on 'Enter'
-    if (e.key === 'Enter') {
-      e.preventDefault(); 
-    }
-    
-    // Check for Enter key and a non-empty value
-    if (e.key === 'Enter' && inputValue.trim() !== '') {
-      const newTag = inputValue.trim().toLowerCase().replace(/[^a-z0-9\s]/g, ''); // Basic sanitation
-      if (newTag && !tags.includes(newTag)) {
-        setTags([...tags, newTag]);
+    // **MORE ROBUST FIX**: Check for 'Enter' key OR key code 13, and prevent default immediately
+    if (e.key === 'Enter' || e.keyCode === 13) { 
+      e.preventDefault(); // CRITICAL: Stop the default form/navigation behavior immediately.
+
+      // Only process the tag if input is not empty and not part of an IME composition (Chinese/Japanese etc.)
+      if (inputValue.trim() !== '' && !e.isComposing) {
+        const newTag = inputValue.trim().toLowerCase().replace(/[^a-z0-9\s]/g, ''); // Basic sanitation
+        if (newTag && !tags.includes(newTag)) {
+          setTags([...tags, newTag]);
+        }
+        setInputValue('');
       }
-      setInputValue('');
     }
   };
 
