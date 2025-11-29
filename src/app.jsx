@@ -1196,17 +1196,32 @@ const App = () => {
               <h1 className="text-xl font-semibold tracking-tight capitalize text-white">{currentView}</h1>
               <p className="text-xs text-gray-500 mt-0.5">Welcome back, Trader.</p>
             </div>
-            <div className="flex items-center gap-6">
-              <div className="text-right hidden md:block">
-                <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Account Equity</div>
+            
+            <div className="flex items-center gap-4 md:gap-6">
+              
+              {/* ACCOUNT EQUITY (Responsive) */}
+              <div className="flex items-center gap-2 md:flex-col md:gap-0">
+                <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold md:self-end">
+                    <span className="md:hidden">Equity:</span>
+                    <span className="hidden md:inline">Account Equity</span>
+                </div>
                 <div className="flex items-center gap-2 justify-end">
-                  <div className="text-xl font-mono text-[#4FF3F9]">{formatCurrency(currentBalance)}</div>
-                  <button onClick={() => setBalanceModalOpen(true)} className="p-1 rounded-md hover:bg-white/10 text-gray-500 hover:text-white transition-colors"><Pencil size={12}/></button>
+                  <div className="text-base md:text-xl font-mono text-[#4FF3F9] font-medium">{formatCurrency(currentBalance)}</div>
+                  <button onClick={() => setBalanceModalOpen(true)} className="p-1 rounded-md hover:bg-white/10 text-gray-500 hover:text-white transition-colors">
+                    <Pencil size={12}/>
+                  </button>
                 </div>
               </div>
+              
+              {/* Sign Out Button (Mobile Only) */}
+              <div className='md:hidden'>
+                <IconButton icon={LogOut} onClick={handleSignOut} variant="danger" className="p-2"/>
+              </div>
+
+              {/* NEW TRADE BUTTON */}
               <button 
                 onClick={() => { setEditTrade(null); setModalOpen(true); }}
-                className="bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                className="bg-white text-black hover:bg-gray-200 px-3 md:px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)]"
               >
                 <Plus size={18} /> <span className="hidden md:inline">New Trade</span>
               </button>
