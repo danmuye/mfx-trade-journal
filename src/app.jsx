@@ -279,7 +279,7 @@ const MobileNav = ({ currentView, setCurrentView }) => {
   );
 };
 
-const Sidebar = ({ currentView, setCurrentView, signOut }) => {
+const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { // Updated prop name to triggerSignOut
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
@@ -314,7 +314,7 @@ const Sidebar = ({ currentView, setCurrentView, signOut }) => {
       </nav>
 
       <div className="p-4 border-t border-white/5">
-        <button onClick={signOut} className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10 transition-colors">
+        <button onClick={triggerSignOut} className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10 transition-colors">
           <LogOut size={20} />
           <span className="text-sm font-medium">Sign Out</span>
         </button>
@@ -680,7 +680,25 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
                           </div>
                         </div>
                       )}
-                      {!trade.notes && !trade.mistake && !trade.learnings && (!trade.tags || trade.tags.length === 0) && (
+                      
+                      {/* NEW SCREENSHOT VIEW BUTTON */}
+                      {trade.screenshot_url && (
+                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#A479FF]/20 flex items-center justify-between">
+                          <p className="text-[#A479FF] font-semibold uppercase text-[10px]">Chart Screenshot</p>
+                          <a 
+                            href={trade.screenshot_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="flex items-center gap-1 text-xs text-[#A479FF] hover:text-white transition-colors"
+                          >
+                            <Camera size={14} /> 
+                            View Image
+                          </a>
+                        </div>
+                      )}
+                      {/* END NEW SCREENSHOT VIEW BUTTON */}
+
+                      {!trade.notes && !trade.mistake && !trade.learnings && (!trade.tags || trade.tags.length === 0) && !trade.screenshot_url && (
                          <div className="col-span-3 text-center text-gray-500 p-2">No detailed notes logged for this trade.</div>
                       )}
                     </div>
@@ -703,18 +721,21 @@ const TagsInput = ({ tags, setTags, label }) => {
   const [inputValue, setInputValue] = useState('');
 
   const handleKeyDown = (e) => {
-    // **MORE ROBUST FIX**: Check for 'Enter' key OR key code 13, and prevent default immediately
-    if (e.key === 'Enter' || e.keyCode === 13) { 
-      e.preventDefault(); // CRITICAL: Stop the default form/navigation behavior immediately.
+    if (e.key === 'Enter' && inputValue.trim() !== '') {
+      e.preventDefault();     // Stop mobile from jumping to next input
+      e.stopPropagation();    // Extra safety
 
-      // Only process the tag if input is not empty and not part of an IME composition (Chinese/Japanese etc.)
-      if (inputValue.trim() !== '' && !e.isComposing) {
-        const newTag = inputValue.trim().toLowerCase().replace(/[^a-z0-9\s]/g, ''); // Basic sanitation
-        if (newTag && !tags.includes(newTag)) {
-          setTags([...tags, newTag]);
-        }
-        setInputValue('');
+      // Convert to UPPERCASE + keep only A-Z 0-9 and spaces
+      const newTag = inputValue
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9\s]/g, '');
+
+      if (newTag && !tags.includes(newTag)) {
+        setTags([...tags, newTag]);
       }
+
+      setInputValue('');
     }
   };
 
@@ -726,15 +747,22 @@ const TagsInput = ({ tags, setTags, label }) => {
     <InputGroup label={label}>
       <div className="flex flex-wrap gap-2 mb-2 min-h-[36px]">
         {tags.map((tag, index) => (
-          // Blue/Cyan style applied here
-          <span key={index} className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-[#4FF3F9]/20 text-[#4FF3F9] border border-[#4FF3F9]/30">
+          <span
+            key={index}
+            className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-[#4FF3F9]/20 text-[#4FF3F9] border border-[#4FF3F9]/30"
+          >
             {tag}
-            <button type="button" onClick={() => removeTag(tag)} className="text-[#4FF3F9] hover:text-white transition-colors p-0.5 rounded-full">
-              <X size={10} strokeWidth={3} /> {/* Small 'x' icon */}
+            <button
+              type="button"
+              onClick={() => removeTag(tag)}
+              className="text-[#4FF3F9] hover:text-white transition-colors p-0.5 rounded-full"
+            >
+              <X size={10} strokeWidth={3} />
             </button>
           </span>
         ))}
       </div>
+
       <input
         type="text"
         className={inputClass}
@@ -742,10 +770,13 @@ const TagsInput = ({ tags, setTags, label }) => {
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Type tag and press Enter to confirm"
+        enterKeyHint="done"  // improves keyboard behavior on mobile
+        autoCapitalize="characters" // helps auto-uppercase typing
       />
     </InputGroup>
   );
 };
+
 // --- END NEW TAGS INPUT COMPONENT ---
 
 const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
@@ -973,6 +1004,45 @@ const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
   );
 };
 
+// --- 🆕 NEW: SIGN OUT CONFIRMATION MODAL ---
+const SignOutConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <Card className="w-full max-w-sm bg-[#131619] shadow-2xl" noPadding>
+        <div className="p-6 border-b border-white/5 flex justify-between items-center">
+          <h3 className="text-lg font-medium text-white flex items-center gap-2">
+            <LogOut size={20} className="text-[#FF4D4D]" /> Confirm Sign Out
+          </h3>
+          <IconButton icon={X} onClick={onClose} />
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-gray-300">
+            Are you sure you want to sign out? You will be logged out of your trading journal.
+          </p>
+          <div className="flex justify-end gap-3">
+            <button 
+              onClick={onClose} 
+              className="px-6 py-2.5 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={onConfirm} 
+              className="px-6 py-2.5 rounded-xl bg-[#FF4D4D] text-white text-sm font-bold hover:bg-[#E03A3A] transition-all"
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+};
+// --- END NEW: SIGN OUT CONFIRMATION MODAL ---
+
+
 // --- 📱 MAIN APP COMPONENT ---
 
 const App = () => {
@@ -982,6 +1052,7 @@ const App = () => {
   const [balance, setBalance] = useState(5000);
   const [modalOpen, setModalOpen] = useState(false);
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
+  const [signOutModalOpen, setSignOutModalOpen] = useState(false); // New state for sign out modal
   const [editTrade, setEditTrade] = useState(null);
 
   // === 🚨 FIX: SUPABASE REDIRECT HANDLER (SOLUTION 1) ===
@@ -1059,6 +1130,16 @@ const App = () => {
     setBalance(newStartingBalance);
     await supabase.from('user_settings').upsert({ user_id: user.id, starting_balance: newStartingBalance }, { onConflict: 'user_id' });
   };
+  
+  // New Sign Out Handler
+  const handleSignOut = () => {
+    setSignOutModalOpen(true);
+  };
+
+  const confirmSignOut = () => {
+    signOut(); // Execute the actual sign out function
+    setSignOutModalOpen(false);
+  };
 
   if (!user) {
   return (
@@ -1120,7 +1201,7 @@ const App = () => {
         <MobileNav currentView={currentView} setCurrentView={setCurrentView} />
 
         {/* Desktop Sidebar (Hidden on Mobile) */}
-        <Sidebar currentView={currentView} setCurrentView={setCurrentView} signOut={signOut} />
+        <Sidebar currentView={currentView} setCurrentView={setCurrentView} triggerSignOut={handleSignOut} />
         
         <main className="flex-1 md:ml-64 flex flex-col overflow-hidden relative mb-16 md:mb-0">
           {/* Background Ambient Glows */}
@@ -1132,17 +1213,32 @@ const App = () => {
               <h1 className="text-xl font-semibold tracking-tight capitalize text-white">{currentView}</h1>
               <p className="text-xs text-gray-500 mt-0.5">Welcome back, Trader.</p>
             </div>
-            <div className="flex items-center gap-6">
-              <div className="text-right hidden md:block">
-                <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Account Equity</div>
+            
+            <div className="flex items-center gap-4 md:gap-6">
+              
+              {/* ACCOUNT EQUITY (Responsive) */}
+              <div className="flex items-center gap-2 md:flex-col md:gap-0">
+                <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold md:self-end">
+                    <span className="md:hidden">Equity:</span>
+                    <span className="hidden md:inline">Account Equity</span>
+                </div>
                 <div className="flex items-center gap-2 justify-end">
-                  <div className="text-xl font-mono text-[#4FF3F9]">{formatCurrency(currentBalance)}</div>
-                  <button onClick={() => setBalanceModalOpen(true)} className="p-1 rounded-md hover:bg-white/10 text-gray-500 hover:text-white transition-colors"><Pencil size={12}/></button>
+                  <div className="text-base md:text-xl font-mono text-[#4FF3F9] font-medium">{formatCurrency(currentBalance)}</div>
+                  <button onClick={() => setBalanceModalOpen(true)} className="p-1 rounded-md hover:bg-white/10 text-gray-500 hover:text-white transition-colors">
+                    <Pencil size={12}/>
+                  </button>
                 </div>
               </div>
+              
+              {/* Sign Out Button (Mobile Only) */}
+              <div className='md:hidden'>
+                <IconButton icon={LogOut} onClick={handleSignOut} variant="danger" className="p-2"/>
+              </div>
+
+              {/* NEW TRADE BUTTON */}
               <button 
                 onClick={() => { setEditTrade(null); setModalOpen(true); }}
-                className="bg-white text-black hover:bg-gray-200 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                className="bg-white text-black hover:bg-gray-200 px-3 md:px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)]"
               >
                 <Plus size={18} /> <span className="hidden md:inline">New Trade</span>
               </button>
@@ -1172,6 +1268,13 @@ const App = () => {
         onClose={() => setBalanceModalOpen(false)}
         currentBalance={currentBalance}
         onUpdate={handleBalanceUpdate}
+      />
+      
+      {/* NEW: Sign Out Modal */}
+      <SignOutConfirmationModal
+        isOpen={signOutModalOpen}
+        onClose={() => setSignOutModalOpen(false)}
+        onConfirm={confirmSignOut}
       />
       
       {/* Global CSS for Recharts override */}
