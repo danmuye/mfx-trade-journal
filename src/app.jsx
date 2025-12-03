@@ -600,6 +600,16 @@ const MobileTradeCard = ({ trade, onExpand, isExpanded, onEdit, onDelete }) => (
                 </div>
             )}
 
+            {/* Chart Screenshot - ADDED for consistency and cleaned up display */}
+            {trade.screenshot_url && (
+                <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#A479FF]/20 flex items-center justify-between">
+                    <p className="text-[#A479FF] font-semibold uppercase text-[10px]">Chart Screenshot</p>
+                    <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#A479FF] hover:text-white transition-colors" >
+                        <Camera size={14} /> View Image
+                    </a>
+                </div>
+            )}
+
             {/* Tags & Actions */}
             <div className="flex justify-between items-center pt-2">
                 <div className="flex gap-1 flex-wrap">
@@ -715,6 +725,7 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
                                                         <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#A479FF]/20 flex items-center justify-between">
                                                             <p className="text-[#A479FF] font-semibold uppercase text-[10px]">Chart Screenshot</p>
                                                             <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#A479FF] hover:text-white transition-colors" >
+                                                                {/* UPDATED: Removed the truncated URL string, kept only the button style */}
                                                                 <Camera size={14} /> View Image
                                                             </a>
                                                         </div>
@@ -967,8 +978,9 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
         <InputGroup label="Chart Screenshot (Optional)">
           {trade.screenshot_url ? (
             <div className="p-3 bg-[#131619] border border-white/10 rounded-xl flex justify-between items-center">
-              <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="text-sm text-[#A479FF] hover:underline truncate max-w-[70%]" >
-                {trade.screenshot_url.substring(0, 50)}...
+              {/* UPDATED: Only show a clean link to the image, not the URL itself */}
+              <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-[#A479FF] hover:underline" >
+                <Camera size={18} /> View Screenshot
               </a>
               <div className="flex items-center gap-2">
                 <IconButton icon={X} onClick={handleRemoveScreenshot} variant="danger" className="text-sm" />
