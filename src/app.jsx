@@ -4,7 +4,7 @@ import {
   Filter, TrendingUp, Target, BrainCircuit, X, Save, Camera, 
   MoreHorizontal, Pencil, Trash2, LogOut, ChevronLeft, ChevronRight, 
   CalendarDays, HeartHandshake, Wallet, ArrowUpRight, ArrowDownRight,
-  PieChart as PieIcon, Menu, ChevronUp, ChevronDown // Added ChevronDown for select
+  PieChart as PieIcon, Menu, ChevronUp, ChevronDown 
 } from 'lucide-react';
 import { 
   AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, 
@@ -17,17 +17,17 @@ import MuyeFxLogoImage from './Logo Muye FX CMYK.jpg';
 
 // --- 🎨 DESIGN SYSTEM & UTILS ---
 const THEME = {
-  bg: "bg-[#0C0F14]", // Deep Obsidian
-  card: "bg-[#131619]", // Slightly lighter charcoal
+  bg: "bg-[#0C0F14]", 
+  card: "bg-[#131619]", 
   cardHover: "hover:bg-[#1A1D21]",
   border: "border-white/5",
   glass: "backdrop-blur-xl bg-[#131619]/80 border-white/10",
   accent: {
-    green: "#3CFF64", // Neon Green
-    red: "#FF4D4D",   // Neon Red
-    purple: "#A479FF", // Neon Purple
-    cyan: "#4FF3F9",   // Neon Cyan
-    yellow: "#FFD860"  // Soft Yellow
+    green: "#3CFF64", 
+    red: "#FF4D4D",   
+    purple: "#A479FF", 
+    cyan: "#4FF3F9",   
+    yellow: "#FFD860"  
   },
   text: {
     primary: "text-white",
@@ -53,9 +53,9 @@ const selectClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 
 // --- 🧩 UI PRIMITIVES ---
 
 const Card = ({ children, className = "", noPadding = false, glow = false }) => (
-  <div className={`relative group rounded-2xl border ${THEME.border} ${THEME.card} overflow-hidden transition-all duration-300 ${glow ? 'hover:shadow-[0_0_20px_rgba(164,121,255,0.1)] hover:border-white/10' : ''} ${className}`}>
+  <div className={`relative group rounded-2xl border ${THEME.border} ${THEME.card} transition-all duration-300 ${glow ? 'hover:shadow-[0_0_20px_rgba(164,121,255,0.1)] hover:border-white/10' : ''} ${className}`}>
     <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
-    <div className={noPadding ? "" : "p-6"}>
+    <div className={noPadding ? "" : "p-4 sm:p-6"}>
       {children}
     </div>
   </div>
@@ -92,22 +92,14 @@ const IconButton = ({ icon: Icon, onClick, variant = "ghost", className = "" }) 
 // --- 📊 ANALYTICS & UTILITIES ---
 
 const TRADEABLE_ASSETS = {
-  'Forex Majors': [
-    'EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF', 'NZD/USD'
-  ],
-  'Forex Minors (Crosses)': [
-    'EUR/GBP', 'EUR/AUD', 'EUR/CAD', 'EUR/CHF', 'EUR/NZD',
-    'GBP/JPY', 'GBP/AUD', 'GBP/CAD', 'GBP/NZD',
-    'AUD/JPY', 'AUD/CAD', 'AUD/CHF', 'AUD/NZD',
-    'CAD/JPY', 'CHF/JPY', 'NZD/JPY', 'NZD/CAD', 'NZD/CHF'
-  ],
+  'Forex Majors': ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF', 'NZD/USD'],
+  'Forex Minors': ['EUR/GBP', 'EUR/AUD', 'EUR/CAD', 'GBP/JPY', 'AUD/JPY', 'CAD/JPY', 'NZD/JPY'],
   'Metals': ['XAU/USD (Gold)', 'XAG/USD (Silver)'],
-  'Indices': ['US30 (Dow)', 'NAS100 (Nasdaq)', 'SPX500 (S&P 500)'],
+  'Indices': ['US30', 'NAS100', 'SPX500'],
   'Cryptos': ['BTC/USD', 'ETH/USD'],
   'Other': ['Custom Pair']
 };
 
-// 🎯 FIX 1: Updated getKPIs to calculate pnlPercentage and return wins/losses count
 const getKPIs = (trades, startingBalance) => { 
   const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
   const totalTrades = trades.length;
@@ -116,12 +108,8 @@ const getKPIs = (trades, startingBalance) => {
   
   const winRate = totalTrades > 0 ? (winsCount / totalTrades) * 100 : 0;
   
-  // Calculate PnL Percentage (against the persistent starting balance)
   const initialEquity = startingBalance > 0 ? startingBalance : 10000;
-  
-  const pnlPercentage = initialEquity !== 0 
-    ? (totalPnL / initialEquity) * 100 
-    : 0;
+  const pnlPercentage = initialEquity !== 0 ? (totalPnL / initialEquity) * 100 : 0;
   
   const wins = trades.filter(t => t.outcome === 'WIN');
   const losses = trades.filter(t => t.outcome === 'LOSS');
@@ -129,15 +117,7 @@ const getKPIs = (trades, startingBalance) => {
   const avgLoss = lossesCount > 0 ? Math.abs(losses.reduce((acc, t) => acc + t.pnl, 0)) / lossesCount : 0;
   const rr = avgLoss > 0 ? (avgWin / avgLoss) : 0;
 
-  return { 
-    totalPnL, 
-    winRate, 
-    rr, 
-    totalTrades,
-    pnlPercentage, // 🆕 Used for the trend arrow
-    winsCount,     // 🆕 Used for W/L display
-    lossesCount    // 🆕 Used for W/L display
-  };
+  return { totalPnL, winRate, rr, totalTrades, pnlPercentage, winsCount, lossesCount };
 };
 
 const getCalendarData = (trades) => {
@@ -155,37 +135,28 @@ const getPairAnalytics = (trades) => {
         acc[trade.pair] = (acc[trade.pair] || 0) + trade.pnl;
         return acc;
     }, {});
-
     const sortedPairs = Object.entries(pairPnL)
         .map(([pair, pnl]) => ({ pair, pnl, trades: trades.filter(t => t.pair === pair).length }))
         .sort((a, b) => b.pnl - a.pnl);
-
     const mostProfitable = sortedPairs.length > 0 ? sortedPairs[0] : null;
     const worstPerforming = sortedPairs.length > 0 ? sortedPairs[sortedPairs.length - 1] : null;
-
-    // Filter top 5 and bottom 5 for charting
     const top5 = sortedPairs.slice(0, 5);
     const bottom5 = sortedPairs.slice(-5);
-    
     const chartData = [...top5, ...bottom5]
         .filter((item, index, self) => index === self.findIndex((t) => (t.pair === item.pair)))
         .sort((a, b) => b.pnl - a.pnl);
-
     return { mostProfitable, worstPerforming, chartData };
 };
 
 const getTimeAndStrategyAnalytics = (trades) => {
     const SESSIONS = ['Asian', 'London', 'NYC', 'Close'];
     const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    
     const analytics = { sessionPnL: {}, dayPnL: {}, strategyPnL: {} };
-
     DAYS_OF_WEEK.forEach((day, index) => { analytics.dayPnL[day] = { pnl: 0, trades: 0, order: index }; });
 
     trades.forEach(trade => {
         const session = trade.session || 'Unspecified';
         analytics.sessionPnL[session] = (analytics.sessionPnL[session] || 0) + trade.pnl;
-
         const tradeDate = new Date(trade.date + 'T00:00:00Z');
         let dayIndex = tradeDate.getUTCDay();
         dayIndex = dayIndex === 0 ? 6 : dayIndex - 1;
@@ -194,23 +165,13 @@ const getTimeAndStrategyAnalytics = (trades) => {
              analytics.dayPnL[day].pnl += trade.pnl;
              analytics.dayPnL[day].trades += 1;
         }
-
         const strategy = trade.setup || 'Unspecified';
         analytics.strategyPnL[strategy] = (analytics.strategyPnL[strategy] || 0) + trade.pnl;
     });
 
-    const sessionData = Object.entries(analytics.sessionPnL)
-        .map(([name, pnl]) => ({ name, pnl }))
-        .sort((a, b) => SESSIONS.indexOf(a.name) - SESSIONS.indexOf(b.name));
-
-    const dayData = Object.values(analytics.dayPnL)
-        .filter(d => d.trades > 0)
-        .sort((a, b) => a.order - b.order)
-        .map(d => ({ name: DAYS_OF_WEEK[d.order], pnl: d.pnl }));
-    
-    const strategyData = Object.entries(analytics.strategyPnL)
-        .map(([name, pnl]) => ({ name, pnl }))
-        .sort((a, b) => b.pnl - a.pnl);
+    const sessionData = Object.entries(analytics.sessionPnL).map(([name, pnl]) => ({ name, pnl })).sort((a, b) => SESSIONS.indexOf(a.name) - SESSIONS.indexOf(b.name));
+    const dayData = Object.values(analytics.dayPnL).filter(d => d.trades > 0).sort((a, b) => a.order - b.order).map(d => ({ name: DAYS_OF_WEEK[d.order], pnl: d.pnl }));
+    const strategyData = Object.entries(analytics.strategyPnL).map(([name, pnl]) => ({ name, pnl })).sort((a, b) => b.pnl - a.pnl);
 
     return { sessionData, dayData, strategyData };
 };
@@ -218,16 +179,11 @@ const getTimeAndStrategyAnalytics = (trades) => {
 const getMistakeAnalytics = (trades) => {
     const mistakeTrades = trades.filter(t => t.mistake && t.mistake.length > 0);
     const totalMistakePnL = mistakeTrades.reduce((acc, t) => acc + t.pnl, 0);
-
     const frequencyMap = mistakeTrades.reduce((acc, t) => {
         acc[t.mistake] = (acc[t.mistake] || 0) + 1;
         return acc;
     }, {});
-
-    const frequencyData = Object.entries(frequencyMap)
-        .map(([name, value]) => ({ name, value }))
-        .sort((a, b) => b.value - a.value);
-
+    const frequencyData = Object.entries(frequencyMap).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     return { totalMistakePnL, frequencyData, mistakeTrades };
 };
 
@@ -235,17 +191,17 @@ const getMistakeAnalytics = (trades) => {
 
 const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName = 'name', height = 300 }) => {
     if (!data || data.length === 0) return (
-        <Card className="flex items-center justify-center min-h-[300px] text-gray-500 text-sm">
+        <Card className="flex items-center justify-center min-h-[300px] text-gray-500 text-sm w-full overflow-hidden">
             No data available for {title}
         </Card>
     );
 
     return (
-        <Card noPadding>
-            <div className="p-6 border-b border-white/5">
+        <Card noPadding className="w-full overflow-hidden min-w-0">
+            <div className="p-4 sm:p-6 border-b border-white/5">
                 <h3 className="text-lg font-medium text-white">{title}</h3>
             </div>
-            <div className="p-6" style={{ height: `${height}px` }}>
+            <div className="p-4 sm:p-6" style={{ height: `${height}px` }}>
                 <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
@@ -271,50 +227,14 @@ const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName
 
 // --- 🧩 DASHBOARD WIDGETS ---
 
-// --- 🆕 MOBILE NAVIGATION ---
-const MobileNav = ({ currentView, setCurrentView }) => {
-  const items = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
-    { id: 'journal', icon: BookOpen, label: 'Journal' },
-    { id: 'analytics', icon: BarChart3, label: 'Data' },
-    { id: 'mistakes', icon: AlertTriangle, label: 'Review' },
-  ];
-
-  return (
-    <nav className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-[#131619]/95 backdrop-blur-xl border-t border-white/10 flex justify-around items-center pb-safe pt-3 px-2 pb-2">
-      {items.map((item) => {
-        const active = currentView === item.id;
-        return (
-          <button 
-            key={item.id}
-            onClick={() => setCurrentView(item.id)}
-            className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all duration-200
-              ${active ? 'text-[#A479FF]' : 'text-gray-500 hover:text-gray-300'}
-            `}
-          >
-            <item.icon size={22} strokeWidth={active ? 2.5 : 2} />
-            <span className="text-[10px] font-medium">{item.label}</span>
-          </button>
-        );
-      })}
-    </nav>
-  );
-};
-
-// --- START LOGO CUSTOMIZATION ---
 const MuyeFXLogo = () => (
     <div className="flex items-center justify-start gap-3">
-        <img 
-            src={MuyeFxLogoImage} 
-            alt="MuyeFX Logo" 
-            className="h-10 w-auto" 
-        />
-        <span className="text-xl font-extrabold tracking-tight" style={{ color: '#EBEBEB', fontFamily: 'Arial, sans-serif' }}>
+        <img src={MuyeFxLogoImage} alt="MuyeFX Logo" className="h-8 sm:h-10 w-auto" />
+        <span className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: '#EBEBEB', fontFamily: 'Arial, sans-serif' }}>
           MUYE<span style={{ color: '#3CFF64' }}>FX</span>
         </span>
     </div>
 );
-// --- END LOGO CUSTOMIZATION ---
 
 
 const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { 
@@ -326,12 +246,12 @@ const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => {
   ];
 
   return (
-    <aside className="hidden md:flex w-64 border-r border-white/5 flex-col bg-[#0C0F14] z-20 fixed h-full transition-all duration-300">
+    <div className="flex flex-col h-full w-full">
       <div className="h-20 flex items-center justify-start px-6 border-b border-white/5">
         <MuyeFXLogo />
       </div>
       
-      <nav className="flex-1 p-4 space-y-2">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         {items.map((item) => {
           const active = currentView === item.id;
           return (
@@ -350,21 +270,21 @@ const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => {
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-white/5 bg-[#0C0F14]">
         <button onClick={triggerSignOut} className="w-full flex items-center gap-3 p-3 rounded-xl text-gray-400 hover:text-[#FF4D4D] hover:bg-[#FF4D4D]/10 transition-colors">
           <LogOut size={20} />
           <span className="text-sm font-medium">Sign Out</span>
         </button>
       </div>
-    </aside>
+    </div>
   );
 };
 
 const StatsWidget = ({ label, value, subValue, trend, icon: Icon, accentColor }) => (
-  <Card className="flex flex-col justify-between h-[140px]" glow>
+  <Card className="flex flex-col justify-between h-[120px] sm:h-[140px]" glow>
     <div className="flex justify-between items-start">
-      <div className={`p-2.5 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${accentColor}1A` }}>
-        <Icon size={20} style={{ color: accentColor }} />
+      <div className={`p-2 sm:p-2.5 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${accentColor}1A` }}>
+        <Icon size={18} sm:size={20} style={{ color: accentColor }} />
         </div>
       {trend && (
         <span className={`flex items-center text-xs font-medium ${parseFloat(trend) >= 0 ? 'text-[#3CFF64]' : 'text-[#FF4D4D]'}`}>
@@ -374,9 +294,9 @@ const StatsWidget = ({ label, value, subValue, trend, icon: Icon, accentColor })
       )}
     </div>
     <div>
-      <h4 className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-1">{label}</h4>
-      <div className="text-2xl font-semibold text-white tracking-tight">{value}</div>
-      {subValue && <div className="text-xs text-gray-500 mt-1">{subValue}</div>}
+      <h4 className="text-gray-400 text-[10px] sm:text-xs font-medium uppercase tracking-wider mb-1 truncate">{label}</h4>
+      <div className="text-xl sm:text-2xl font-semibold text-white tracking-tight truncate">{value}</div>
+      {subValue && <div className="text-[10px] sm:text-xs text-gray-500 mt-1 truncate">{subValue}</div>}
     </div>
   </Card>
 );
@@ -398,25 +318,25 @@ const CalendarWidget = ({ trades }) => {
   for (let i = 1; i <= daysInMonth; i++) days.push(i);
 
   return (
-    <Card className="col-span-1 lg:col-span-2 h-full min-h-[400px]" noPadding>
-      <div className="p-6 border-b border-white/5 flex justify-between items-center">
-        <h3 className="text-lg font-medium text-white flex items-center gap-2">
+    <Card className="col-span-1 lg:col-span-2 w-full overflow-hidden min-w-0" noPadding>
+      <div className="p-4 sm:p-6 border-b border-white/5 flex justify-between items-center">
+        <h3 className="text-base sm:text-lg font-medium text-white flex items-center gap-2">
           <CalendarDays size={18} className="text-[#4FF3F9]" /> Profit Calendar
         </h3>
         <div className="flex items-center gap-2">
           <IconButton icon={ChevronLeft} onClick={() => setDate(new Date(year, month - 1, 1))} />
-          <span className="text-sm font-medium text-gray-300 w-32 text-center">{monthName}</span>
+          <span className="text-xs sm:text-sm font-medium text-gray-300 w-24 sm:w-32 text-center">{monthName}</span>
           <IconButton icon={ChevronRight} onClick={() => setDate(new Date(year, month + 1, 1))} />
         </div>
       </div>
       
-      <div className="p-6">
-        <div className="grid grid-cols-7 gap-2 mb-2">
+      <div className="p-4 sm:p-6 overflow-x-auto">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 mb-2 min-w-[280px]">
           {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => (
-            <div key={d} className="text-center text-[10px] font-medium text-gray-500 uppercase tracking-wider">{d}</div>
+            <div key={d} className="text-center text-[9px] sm:text-[10px] font-medium text-gray-500 uppercase tracking-wider">{d}</div>
           ))}
         </div>
-        <div className="grid grid-cols-7 gap-2">
+        <div className="grid grid-cols-7 gap-1 sm:gap-2 min-w-[280px]">
           {days.map((d, i) => {
             if (!d) return <div key={i} className="aspect-square rounded-lg bg-[#1A1D21]/30" />;
             
@@ -440,11 +360,11 @@ const CalendarWidget = ({ trades }) => {
             }
 
             return (
-              <div key={i} className={`aspect-square rounded-xl p-1 sm:p-2 flex flex-col justify-between transition-all cursor-pointer group ${bg}`}>
-                <span className={`text-xs font-medium ${data ? 'text-white' : 'text-gray-600'}`}>{d}</span>
+              <div key={i} className={`aspect-square rounded-md sm:rounded-xl p-0.5 sm:p-2 flex flex-col justify-center sm:justify-between transition-all cursor-pointer group ${bg}`}>
+                <span className={`text-[9px] sm:text-xs font-medium text-center sm:text-left ${data ? 'text-white' : 'text-gray-600'}`}>{d}</span>
                 {data && (
-                  <div className="text-right">
-                    <div className={`text-[8px] sm:text-[10px] lg:text-xs font-bold tracking-tight ${text}`}>
+                  <div className="text-center sm:text-right">
+                    <div className={`text-[8px] sm:text-xs font-bold tracking-tight ${text}`}>
                       {data.pnl > 0 ? '+' : ''}{data.pnl.toFixed(0)}
                     </div>
                     <div className="hidden sm:block text-[9px] text-gray-500 mt-0.5 font-medium">
@@ -468,19 +388,18 @@ const EquityCurveWidget = ({ trades, startingBalance }) => {
     return { ...t, balance };
   });
 
-  // If there are no trades, just show a flat line starting at the initial balance
   if (data.length === 0) {
       data.push({ date: new Date().toISOString().substring(0, 10), balance: startingBalance });
   }
 
   return (
-    <Card className="col-span-1 h-full min-h-[400px]" noPadding>
-      <div className="p-6 border-b border-white/5">
-        <h3 className="text-lg font-medium text-white flex items-center gap-2">
+    <Card className="col-span-1 h-full min-h-[350px] sm:min-h-[400px] w-full overflow-hidden min-w-0" noPadding>
+      <div className="p-4 sm:p-6 border-b border-white/5">
+        <h3 className="text-base sm:text-lg font-medium text-white flex items-center gap-2">
           <TrendingUp size={18} className="text-[#A479FF]" /> Equity Curve
         </h3>
         </div>
-      <div className="h-[320px] w-full p-4 pt-8">
+      <div className="h-[280px] sm:h-[320px] w-full p-2 sm:p-4 pt-4 sm:pt-8">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data}>
             <defs>
@@ -511,19 +430,19 @@ const AnalyticsView = ({ trades }) => {
     const { sessionData, dayData, strategyData } = getTimeAndStrategyAnalytics(trades);
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <ModernBarChart data={pairChartData} title="Top & Bottom Pairs" keyName="pair" />
                 <ModernBarChart data={strategyData} title="Strategy Performance" keyName="name" primaryColor={THEME.accent.purple} />
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                 <ModernBarChart data={sessionData} title="Session Performance" keyName="name" primaryColor={THEME.accent.yellow} />
                 <ModernBarChart data={dayData} title="Day of Week Performance" keyName="name" primaryColor={THEME.accent.cyan} />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+                <Card className="min-w-0">
                     <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">Most Profitable Pair</div>
                     {mostProfitable ? (
                         <div>
@@ -532,7 +451,7 @@ const AnalyticsView = ({ trades }) => {
                         </div>
                     ) : <div className="text-gray-500">N/A</div>}
                 </Card>
-                <Card>
+                <Card className="min-w-0">
                     <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">Worst Performing Pair</div>
                     {worstPerforming ? (
                         <div>
@@ -551,9 +470,9 @@ const MistakesView = ({ trades, onEdit }) => {
     const COLORS = [THEME.accent.red, THEME.accent.purple, THEME.accent.yellow, THEME.accent.cyan, THEME.accent.green, '#fff'];
 
     return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="col-span-1 lg:col-span-1 flex flex-col justify-center border-[#FF4D4D]/30" glow>
+        <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+                <Card className="col-span-1 lg:col-span-1 flex flex-col justify-center border-[#FF4D4D]/30 min-w-0" glow>
                     <div className="text-xs text-gray-400 uppercase tracking-wider mb-2">Total Loss Due to Mistakes</div>
                     <div className={`text-4xl font-bold font-mono ${totalMistakePnL <= 0 ? 'text-[#FF4D4D]' : 'text-[#3CFF64]'}`}>
                         {totalMistakePnL > 0 ? '+' : ''}${totalMistakePnL.toFixed(2)}
@@ -561,8 +480,8 @@ const MistakesView = ({ trades, onEdit }) => {
                     <div className="mt-3 text-[10px] text-gray-500">Cumulative PnL of all trades tagged with a mistake.</div>
                 </Card>
 
-                <Card className="col-span-1 lg:col-span-2 min-h-[300px]" noPadding>
-                    <div className="p-6 border-b border-white/5">
+                <Card className="col-span-1 lg:col-span-2 min-h-[300px] w-full overflow-hidden min-w-0" noPadding>
+                    <div className="p-4 sm:p-6 border-b border-white/5">
                         <h3 className="text-lg font-medium text-white">Mistake Frequency</h3>
                     </div>
                     <div className="h-[250px] w-full p-4">
@@ -588,15 +507,15 @@ const MistakesView = ({ trades, onEdit }) => {
                 </Card>
             </div>
 
-            <Card noPadding>
-                <div className="p-6 border-b border-white/5">
+            <Card noPadding className="w-full overflow-hidden min-w-0">
+                <div className="p-4 sm:p-6 border-b border-white/5">
                     <h3 className="text-lg font-medium text-white flex items-center gap-2">
                         <HeartHandshake className="text-[#3CFF64]" size={20} /> Trade Review & Corrections
                     </h3>
                 </div>
                 <div className="divide-y divide-white/5">
                     {mistakeTrades.map(trade => (
-                        <div key={trade.id} className="p-6 hover:bg-[#1A1D21] transition-colors">
+                        <div key={trade.id} className="p-4 sm:p-6 hover:bg-[#1A1D21] transition-colors">
                             <div className="flex justify-between items-start mb-3">
                                 <div>
                                     <div className="flex items-center gap-3 mb-1">
@@ -629,7 +548,68 @@ const MistakesView = ({ trades, onEdit }) => {
     );
 };
 
-// --- 📝 TRADE LIST & MODAL ---
+// --- 📝 TRADE LIST & CARD COMPONENTS ---
+
+const MobileTradeCard = ({ trade, onExpand, isExpanded, onEdit, onDelete }) => (
+  <div className="bg-[#131619] border border-white/5 rounded-xl p-4 mb-3">
+    <div className="flex justify-between items-start mb-2" onClick={onExpand}>
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="text-white font-bold text-base">{trade.pair}</span>
+          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${trade.type === 'Long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+            {trade.type}
+          </span>
+        </div>
+        <div className="text-xs text-gray-500 mt-1">{trade.date}</div>
+      </div>
+      <div className="text-right">
+        <div className={`font-mono font-bold text-base ${trade.pnl > 0 ? 'text-[#3CFF64]' : trade.pnl < 0 ? 'text-[#FF4D4D]' : 'text-gray-400'}`}>
+           {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+        </div>
+        <div className="mt-1"><Badge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</Badge></div>
+      </div>
+    </div>
+    
+    {isExpanded && (
+        <div className="mt-4 pt-4 border-t border-white/5 space-y-3 animate-in slide-in-from-top-2 duration-200">
+             {/* Notes */}
+             {trade.notes && (
+                <div>
+                    <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Notes</p>
+                    <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.notes}</p>
+                </div>
+            )}
+            
+            {/* Setup */}
+            {trade.setup && (
+                <div className='flex gap-2 items-center'>
+                     <p className="text-[10px] text-gray-500 uppercase font-semibold">Strategy:</p>
+                     <p className="text-sm text-gray-300">{trade.setup}</p>
+                </div>
+            )}
+
+            {/* Tags & Actions */}
+            <div className="flex justify-between items-center pt-2">
+                <div className="flex gap-1 flex-wrap">
+                    {trade.tags && trade.tags.map((tag, i) => (
+                         <span key={i} className="px-2 py-0.5 text-[10px] rounded-full bg-[#4FF3F9]/10 text-[#4FF3F9] font-medium">{tag}</span>
+                    ))}
+                </div>
+                <div className="flex gap-2">
+                    <IconButton icon={Pencil} onClick={() => onEdit(trade)} variant="ghost" />
+                    <IconButton icon={Trash2} onClick={() => onDelete(trade)} variant="danger" />
+                </div>
+            </div>
+        </div>
+    )}
+    {!isExpanded && (
+        <div className="flex justify-center mt-2" onClick={onExpand}>
+            <ChevronDown size={16} className="text-gray-600" />
+        </div>
+    )}
+  </div>
+);
+
 const TradeList = ({ trades, onEdit, onDelete }) => {
     const [expandedTradeId, setExpandedTradeId] = useState(null);
     const toggleExpand = (id) => {
@@ -637,101 +617,107 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
     };
 
     return (
-        <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#131619]">
-            <table className="w-full text-left border-collapse min-w-[850px] lg:min-w-0">
-                <thead>
-                    <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-white/5">
-                        <th className="p-4 pl-6">Date</th>
-                        <th className="p-4">Pair</th>
-                        <th className="p-4">Type</th>
-                        <th className="p-4">Setup</th>
-                        <th className="p-4 text-right">PnL</th>
-                        <th className="p-4 text-center">Status</th>
-                        <th className="p-4 text-center">Details</th> 
-                        <th className="p-4 text-right pr-6">Actions</th>
-                    </tr>
-                </thead>
-                <tbody className="text-sm text-gray-300">
-                    {trades.map((trade) => (
-                        <React.Fragment key={trade.id}>
-                            <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                                <td className="p-4 pl-6 font-mono text-gray-400">{trade.date}</td>
-                                <td className="p-4 font-medium text-white">{trade.pair}</td>
-                                <td className="p-4">
-                                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${trade.type === 'Long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                                        {trade.type}
-                                    </span>
-                                </td>
-                                <td className="p-4 text-gray-400">{trade.setup || '-'}</td>
-                                <td className={`p-4 text-right font-mono font-medium ${trade.pnl > 0 ? 'text-[#3CFF64]' : trade.pnl < 0 ? 'text-[#FF4D4D]' : 'text-gray-400'}`}>
-                                    {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
-                                </td>
-                                <td className="p-4 text-center">
-                                    <Badge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</Badge>
-                                </td>
-                                <td className="p-4 text-center">
-                                    <IconButton icon={expandedTradeId === trade.id ? ChevronUp : MoreHorizontal} onClick={() => toggleExpand(trade.id)} />
-                                </td>
-                                <td className="p-4 text-right pr-6">
-                                    <div className="flex justify-end items-center gap-2">
-                                        <IconButton icon={Pencil} onClick={() => onEdit(trade)} variant="ghost" className="opacity-70 group-hover:opacity-100" />
-                                        <IconButton icon={Trash2} onClick={() => onDelete(trade)} variant="danger" className="opacity-70 group-hover:opacity-100" />
-                                    </div>
-                                </td>
-                            </tr>
-                            {expandedTradeId === trade.id && (
-                                <tr className="bg-white/[0.01]">
-                                    <td colSpan="8" className="p-6 border-b border-white/5">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                            {/* Notes */}
-                                            {trade.notes && (
-                                                <div className="col-span-1">
-                                                    <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Notes & Rationale</p>
-                                                    <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.notes}</p>
-                                                </div>
-                                            )}
-                                            
-                                            {/* Learnings */}
-                                            {trade.learnings && (
-                                                <div className="col-span-1">
-                                                    <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Key Learning</p>
-                                                    <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.learnings}</p>
-                                                </div>
-                                            )}
+        <div className='w-full'>
+            {/* MOBILE VIEW: Stack of Cards */}
+            <div className="md:hidden">
+                {trades.map((trade) => (
+                    <MobileTradeCard 
+                        key={trade.id} 
+                        trade={trade} 
+                        isExpanded={expandedTradeId === trade.id}
+                        onExpand={() => toggleExpand(trade.id)}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                    />
+                ))}
+            </div>
 
-                                            {/* Tags & Screenshot */}
-                                            <div className={`col-span-1 space-y-3 ${!trade.notes && !trade.learnings ? 'md:col-span-3' : ''}`}>
-                                                {/* Tags */}
-                                                {trade.tags && trade.tags.length > 0 && (
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {trade.tags.map((tag, i) => (
-                                                            <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-[#4FF3F9]/10 text-[#4FF3F9] font-medium">{tag}</span>
-                                                        ))}
-                                                    </div>
-                                                )}
-
-                                                {/* SCREENSHOT VIEW BUTTON */}
-                                                {trade.screenshot_url && (
-                                                    <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#A479FF]/20 flex items-center justify-between">
-                                                        <p className="text-[#A479FF] font-semibold uppercase text-[10px]">Chart Screenshot</p>
-                                                        <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#A479FF] hover:text-white transition-colors" >
-                                                            <Camera size={14} /> View Image
-                                                        </a>
-                                                    </div>
-                                                )}
-
-                                                {!trade.notes && !trade.mistake && !trade.learnings && (!trade.tags || trade.tags.length === 0) && !trade.screenshot_url && (
-                                                    <div className="col-span-3 text-center text-gray-500 p-2">No detailed notes logged for this trade.</div>
-                                                )}
-                                            </div>
+            {/* DESKTOP VIEW: Table */}
+            <div className="hidden md:block overflow-x-auto rounded-xl border border-white/5 bg-[#131619]">
+                <table className="w-full text-left border-collapse min-w-[850px]">
+                    <thead>
+                        <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-white/5">
+                            <th className="p-4 pl-6">Date</th>
+                            <th className="p-4">Pair</th>
+                            <th className="p-4">Type</th>
+                            <th className="p-4">Setup</th>
+                            <th className="p-4 text-right">PnL</th>
+                            <th className="p-4 text-center">Status</th>
+                            <th className="p-4 text-center">Details</th> 
+                            <th className="p-4 text-right pr-6">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody className="text-sm text-gray-300">
+                        {trades.map((trade) => (
+                            <React.Fragment key={trade.id}>
+                                <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                                    <td className="p-4 pl-6 font-mono text-gray-400">{trade.date}</td>
+                                    <td className="p-4 font-medium text-white">{trade.pair}</td>
+                                    <td className="p-4">
+                                        <span className={`text-xs font-medium px-2 py-0.5 rounded ${trade.type === 'Long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                                            {trade.type}
+                                        </span>
+                                    </td>
+                                    <td className="p-4 text-gray-400">{trade.setup || '-'}</td>
+                                    <td className={`p-4 text-right font-mono font-medium ${trade.pnl > 0 ? 'text-[#3CFF64]' : trade.pnl < 0 ? 'text-[#FF4D4D]' : 'text-gray-400'}`}>
+                                        {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <Badge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</Badge>
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <IconButton icon={expandedTradeId === trade.id ? ChevronUp : MoreHorizontal} onClick={() => toggleExpand(trade.id)} />
+                                    </td>
+                                    <td className="p-4 text-right pr-6">
+                                        <div className="flex justify-end items-center gap-2">
+                                            <IconButton icon={Pencil} onClick={() => onEdit(trade)} variant="ghost" className="opacity-70 group-hover:opacity-100" />
+                                            <IconButton icon={Trash2} onClick={() => onDelete(trade)} variant="danger" className="opacity-70 group-hover:opacity-100" />
                                         </div>
                                     </td>
                                 </tr>
-                            )}
-                        </React.Fragment>
-                    ))}
-                </tbody>
-            </table>
+                                {expandedTradeId === trade.id && (
+                                    <tr className="bg-white/[0.01]">
+                                        <td colSpan="8" className="p-6 border-b border-white/5">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                {trade.notes && (
+                                                    <div className="col-span-1">
+                                                        <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Notes & Rationale</p>
+                                                        <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.notes}</p>
+                                                    </div>
+                                                )}
+                                                {trade.learnings && (
+                                                    <div className="col-span-1">
+                                                        <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Key Learning</p>
+                                                        <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.learnings}</p>
+                                                    </div>
+                                                )}
+                                                <div className={`col-span-1 space-y-3 ${!trade.notes && !trade.learnings ? 'md:col-span-3' : ''}`}>
+                                                    {trade.tags && trade.tags.length > 0 && (
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {trade.tags.map((tag, i) => (
+                                                                <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-[#4FF3F9]/10 text-[#4FF3F9] font-medium">{tag}</span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    {trade.screenshot_url && (
+                                                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#A479FF]/20 flex items-center justify-between">
+                                                            <p className="text-[#A479FF] font-semibold uppercase text-[10px]">Chart Screenshot</p>
+                                                            <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#A479FF] hover:text-white transition-colors" >
+                                                                <Camera size={14} /> View Image
+                                                            </a>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </React.Fragment>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+            
             {trades.length === 0 && (
                 <div className="p-12 text-center text-gray-500 text-sm">No trades found. Start journaling.</div>
             )}
@@ -739,75 +725,46 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
     );
 };
 
-// --- NEW TAGS INPUT COMPONENT ---
 const TagsInput = ({ tags, setTags, label }) => {
     const [inputValue, setInputValue] = useState('');
-
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && inputValue.trim() !== '') {
             e.preventDefault(); 
             e.stopPropagation(); 
-
-            // Convert to UPPERCASE + keep only A-Z 0-9 and spaces
-            const newTag = inputValue
-                .trim()
-                .toUpperCase()
-                .replace(/[^A-Z0-9\s]/g, '');
-
+            const newTag = inputValue.trim().toUpperCase().replace(/[^A-Z0-9\s]/g, '');
             if (newTag && !tags.includes(newTag)) {
                 setTags([...tags, newTag]);
                 setInputValue('');
             }
         }
     };
-
     const handleRemoveTag = (tagToRemove) => {
         setTags(tags.filter(tag => tag !== tagToRemove));
     };
-
     return (
         <InputGroup label={label}>
             <div className="flex flex-wrap gap-2 p-2 min-h-[44px] bg-[#0C0F14] border border-white/10 rounded-xl transition-colors focus-within:border-[#A479FF]">
                 {tags.map((tag) => (
-                    <span 
-                        key={tag} 
-                        className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-[#4FF3F9]/20 text-white cursor-pointer hover:bg-[#4FF3F9]/40 transition-colors"
-                        onClick={() => handleRemoveTag(tag)}
-                    >
-                        {tag}
-                        <X size={12} className="text-gray-300" />
+                    <span key={tag} className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-[#4FF3F9]/20 text-white cursor-pointer hover:bg-[#4FF3F9]/40 transition-colors" onClick={() => handleRemoveTag(tag)} >
+                        {tag} <X size={12} className="text-gray-300" />
                     </span>
                 ))}
-                <input
-                    type="text"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-600 p-0 text-sm min-w-[100px]"
-                    placeholder={tags.length === 0 ? "Add tags (e.g., HTF, LONDON, SCALP)" : ""}
-                />
+                <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-600 p-0 text-sm min-w-[100px]" placeholder={tags.length === 0 ? "Add tags (e.g., HTF, LONDON, SCALP)" : ""} />
             </div>
         </InputGroup>
     );
 };
-// --- END NEW TAGS INPUT COMPONENT ---
-
 
 // --- REUSABLE MODAL COMPONENT ---
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
-
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity" onClick={onClose}>
-      <div 
-        className={`bg-[#131619] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 border border-white/10 ${THEME.text.primary}`}
-        onClick={e => e.stopPropagation()}
-      >
+      <div className={`bg-[#131619] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 border border-white/10 ${THEME.text.primary}`} onClick={e => e.stopPropagation()} >
         <div className="p-6 border-b border-white/5 flex justify-between items-center sticky top-0 bg-[#131619] z-10">
           <h2 className="text-xl font-bold">{title}</h2>
           <IconButton icon={X} onClick={onClose} variant="ghost" />
         </div>
-        
         {children}
       </div>
     </div>
@@ -815,7 +772,6 @@ const Modal = ({ isOpen, onClose, title, children }) => {
 };
 
 // --- TRADE MODAL LOGIC ---
-// Initial state for a new trade
 const initialTradeState = {
   date: new Date().toISOString().substring(0, 10),
   pair: 'EUR/USD',
@@ -842,13 +798,7 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
     if (isOpen) {
       setError('');
       if (tradeToEdit) {
-        // When editing, ensure pnl is treated as a number
-        setTrade({ 
-          ...tradeToEdit, 
-          pnl: Number(tradeToEdit.pnl),
-          // Ensure tags is an array
-          tags: tradeToEdit.tags || [] 
-        });
+        setTrade({ ...tradeToEdit, pnl: Number(tradeToEdit.pnl), tags: tradeToEdit.tags || [] });
       } else {
         setTrade(initialTradeState);
       }
@@ -867,29 +817,16 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
   const uploadScreenshot = async (file) => {
     if (!file || !user) return '';
     setIsUploading(true);
-    
     const fileExt = file.name.split('.').pop();
     const fileName = `${Date.now()}.${fileExt}`;
     const filePath = `${user.id}/${fileName}`;
     
     try {
-      const { error: uploadError } = await supabase.storage
-        .from('screenshots')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      // Get public URL
-      const { data: publicURLData } = supabase.storage
-        .from('screenshots')
-        .getPublicUrl(filePath);
-        
+      const { error: uploadError } = await supabase.storage.from('screenshots').upload(filePath, file);
+      if (uploadError) throw uploadError;
+      const { data: publicURLData } = supabase.storage.from('screenshots').getPublicUrl(filePath);
       return publicURLData.publicUrl;
-
     } catch (error) {
-      console.error('Error uploading file:', error.message);
       setError(`File upload failed: ${error.message.substring(0, 50)}...`);
       return '';
     } finally {
@@ -900,32 +837,19 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (trade.screenshot_url) {
-        await handleRemoveScreenshot(false); 
-      }
+      if (trade.screenshot_url) await handleRemoveScreenshot(false); 
       const url = await uploadScreenshot(file);
-      if (url) {
-        setTrade(prev => ({ ...prev, screenshot_url: url }));
-      }
+      if (url) setTrade(prev => ({ ...prev, screenshot_url: url }));
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (isUploading) return;
     setError('');
-
     try {
-      // 1. Prepare data for saving
-      const tradeToSave = {
-        ...trade,
-        date: trade.date,
-        pnl: Number(trade.pnl),
-        tags: trade.tags.filter(t => t.length > 0)
-      };
-
+      const tradeToSave = { ...trade, date: trade.date, pnl: Number(trade.pnl), tags: trade.tags.filter(t => t.length > 0) };
       await onSave(tradeToSave);
       onClose(); 
     } catch (err) {
@@ -935,31 +859,18 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
 
   const handleRemoveScreenshot = async (resetState = true) => {
     if (!trade.screenshot_url) return;
-
     try {
       const parts = trade.screenshot_url.split('/');
       const fileName = parts.pop();
       const userId = parts.pop();
       const filePath = `${userId}/${fileName}`;
-
-      const { error: deleteError } = await supabase.storage
-        .from('screenshots')
-        .remove([filePath]);
-
-      if (deleteError) {
-        console.error('Error deleting file:', deleteError.message);
-      }
-
-      if (resetState) {
-        setTrade(prev => ({ ...prev, screenshot_url: '' }));
-      }
-
+      const { error: deleteError } = await supabase.storage.from('screenshots').remove([filePath]);
+      if (deleteError) console.error('Error deleting file:', deleteError.message);
+      if (resetState) setTrade(prev => ({ ...prev, screenshot_url: '' }));
     } catch (error) {
-      console.error('Error in remove screenshot process:', error);
       setError("Could not remove old screenshot. Try manually deleting it.");
     }
   };
-
 
   const assetOptions = useMemo(() => {
     return Object.entries(TRADEABLE_ASSETS).flatMap(([group, pairs]) => ([
@@ -980,15 +891,10 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
     <Modal isOpen={isOpen} onClose={onClose} title={tradeToEdit ? "Edit Trade Journal Entry" : "New Trade Journal Entry"} >
       <div className="px-6">
         {error && (
-          <div className="p-3 mb-4 text-sm text-[#FF4D4D] bg-[#FF4D4D]/10 rounded-lg border border-[#FF4D4D]/30">
-            {error}
-          </div>
+          <div className="p-3 mb-4 text-sm text-[#FF4D4D] bg-[#FF4D4D]/10 rounded-lg border border-[#FF4D4D]/30">{error}</div>
         )}
       </div>
-
       <form onSubmit={handleSubmit} className="px-6 pb-6 overflow-y-auto space-y-4">
-
-        {/* DATE & PAIR ROW */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InputGroup label="Trade Date">
             <input type="date" name="date" value={trade.date} onChange={handleChange} className={inputClass} required />
@@ -1002,8 +908,6 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             </div>
           </InputGroup>
         </div>
-
-        {/* TYPE & PNL ROW */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <InputGroup label="Type">
             <select name="type" value={trade.type} onChange={handleChange} className={selectClass} required>
@@ -1011,8 +915,6 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
               <option value="Short">Short (Sell)</option>
             </select>
           </InputGroup>
-
-          {/* PNL & OUTCOME ROW */}
           <InputGroup label="PnL ($)">
             <input type="number" name="pnl" value={trade.pnl} onChange={handleChange} className={`${inputClass} font-mono`} step="0.01" placeholder="e.g., 50.75 or -25.00" required />
           </InputGroup>
@@ -1024,17 +926,11 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             </select>
           </InputGroup>
         </div>
-        
-        {/* SESSION ROW */}
         <InputGroup label="Trading Session">
           <select name="session" value={trade.session} onChange={handleChange} className={selectClass} required>
-            {sessionOptions.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
+            {sessionOptions.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </InputGroup>
-
-        {/* SETUP & MISTAKE ROW */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InputGroup label="Setup / Strategy Used">
             <input type="text" name="setup" value={trade.setup} onChange={handleChange} className={inputClass} placeholder="e.g., SMC, Wyckoff, Scalp" />
@@ -1047,15 +943,7 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             </select>
           </InputGroup>
         </div>
-        
-        {/* TAGS */}
-        <TagsInput 
-          label="Tags (Enter to add)"
-          tags={trade.tags}
-          setTags={handleTagChange}
-        />
-
-        {/* NOTES AND LEARNINGS */}
+        <TagsInput label="Tags (Enter to add)" tags={trade.tags} setTags={handleTagChange} />
         <InputGroup label="Trade Notes & Rationale">
           <textarea name="notes" value={trade.notes} onChange={handleChange} className={`${inputClass} min-h-[100px]`} placeholder="Detailed entry/exit logic, confluence, R:R calculation..." />
         </InputGroup>
@@ -1064,8 +952,6 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             <textarea name="learnings" value={trade.learnings} onChange={handleChange} className={`${inputClass} min-h-[80px] border-[#3CFF64]/50`} placeholder="What rule will I implement to prevent this mistake next time?" />
           </InputGroup>
         )}
-
-        {/* SCREENSHOT UPLOAD */}
         <InputGroup label="Chart Screenshot (Optional)">
           {trade.screenshot_url ? (
             <div className="p-3 bg-[#131619] border border-white/10 rounded-xl flex justify-between items-center">
@@ -1079,23 +965,13 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
           ) : (
             <>
               <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-              <button 
-                type="button" 
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full text-center text-sm font-medium py-2.5 rounded-xl border border-dashed border-white/20 text-gray-400 hover:text-white hover:border-white/50 transition-colors flex items-center gap-2"
-                disabled={isUploading}
-              >
-                {isUploading ? (
-                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-[#A479FF] rounded-full" />
-                ) : (
-                  <Camera size={18} />
-                )}
+              <button type="button" onClick={() => fileInputRef.current?.click()} className="w-full text-center text-sm font-medium py-2.5 rounded-xl border border-dashed border-white/20 text-gray-400 hover:text-white hover:border-white/50 transition-colors flex items-center gap-2" disabled={isUploading}>
+                {isUploading ? <div className="animate-spin h-4 w-4 border-2 border-white border-t-[#A479FF] rounded-full" /> : <Camera size={18} />}
                 {isUploading ? 'Uploading...' : 'Upload Image'}
               </button>
             </>
           )}
         </InputGroup>
-
         <button type="submit" className="w-full mt-6 py-3 text-lg font-medium rounded-xl bg-[#3CFF64] text-black hover:bg-[#2EB84D] transition-colors flex items-center justify-center gap-2" disabled={isUploading}>
           <Save size={18} /> Save Entry
         </button>
@@ -1107,7 +983,7 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
 // --- BALANCE MODAL ---
 const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
   const [amount, setAmount] = useState('');
-  const [type, setType] = useState('deposit'); // 'deposit' or 'withdrawal'
+  const [type, setType] = useState('deposit'); 
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -1121,20 +997,16 @@ const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
-    
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount <= 0) {
       setError('Please enter a valid positive amount.');
       return;
     }
-
     const actualChange = type === 'deposit' ? numAmount : -numAmount;
-    
     if (type === 'withdrawal' && actualChange + currentBalance < 0) {
       setError('Withdrawal exceeds current equity.');
       return;
     }
-
     onUpdate(actualChange);
     onClose();
   };
@@ -1155,15 +1027,7 @@ const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
           </select>
         </InputGroup>
         <InputGroup label="Amount ($)">
-          <input 
-            type="number" 
-            value={amount} 
-            onChange={(e) => setAmount(e.target.value)} 
-            className={inputClass} 
-            step="0.01" 
-            placeholder="e.g., 500.00"
-            required
-          />
+          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputClass} step="0.01" placeholder="e.g., 500.00" required />
         </InputGroup>
         <button type="submit" className="w-full py-3 text-lg font-medium rounded-xl bg-[#A479FF] text-white hover:bg-[#9361FF] transition-colors mt-6">
           Confirm Update
@@ -1180,18 +1044,8 @@ const SignOutConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
             <div className="p-6 pt-0">
                 <p className="text-gray-400 mb-6">Are you sure you want to sign out of your MuyeFX account?</p>
                 <div className="flex justify-end gap-3">
-                    <button 
-                        onClick={onClose} 
-                        className="py-2 px-4 rounded-xl text-white border border-white/20 hover:bg-white/10 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    <button 
-                        onClick={onConfirm} 
-                        className="py-2 px-4 rounded-xl bg-[#FF4D4D] text-white hover:bg-[#E54040] transition-colors"
-                    >
-                        Sign Out
-                    </button>
+                    <button onClick={onClose} className="py-2 px-4 rounded-xl text-white border border-white/20 hover:bg-white/10 transition-colors">Cancel</button>
+                    <button onClick={onConfirm} className="py-2 px-4 rounded-xl bg-[#FF4D4D] text-white hover:bg-[#E54040] transition-colors">Sign Out</button>
                 </div>
             </div>
         </Modal>
@@ -1204,29 +1058,22 @@ const SignOutConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
 const App = () => {
   const { user, signOut } = useAuth();
   
-  // State for application
   const [trades, setTrades] = useState([]);
   const [loadingTrades, setLoadingTrades] = useState(true);
   const [currentView, setCurrentView] = useState('dashboard');
   const [modalOpen, setModalOpen] = useState(false);
   const [editTrade, setEditTrade] = useState(null);
-  const [balance, setBalance] = useState(10000); // Persistent Starting Balance (default to 10k)
+  const [balance, setBalance] = useState(10000); 
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [signOutModalOpen, setSignOutModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Function to save the persistent balance (deposit/withdrawal) to the database
   const updateBalanceInDB = async (newBalance) => {
     if (!user) return;
-    const { error } = await supabase
-      .from('user_settings') // <-- FIX: Use correct table name 'user_settings'
-      .update({ starting_balance: newBalance }) // <-- FIX: Use correct column name 'starting_balance'
-      .eq('user_id', user.id); // <-- Use user_id as per old code
-      
+    const { error } = await supabase.from('user_settings').update({ starting_balance: newBalance }).eq('user_id', user.id); 
     if (error) console.error('Error updating balance:', error);
   };
 
-  // Function to fetch initial data (Trades and Balance)
   const fetchInitialData = async () => {
     if (!user) {
       setLoadingTrades(false);
@@ -1234,43 +1081,22 @@ const App = () => {
     }
     setLoadingTrades(true);
 
-    // Fetch Trades
-    const { data: tradesData, error: tradesError } = await supabase
-      .from('trades')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('date', { ascending: false });
-
+    const { data: tradesData, error: tradesError } = await supabase.from('trades').select('*').eq('user_id', user.id).order('date', { ascending: false });
     if (tradesError) {
       console.error('Error fetching trades:', tradesError);
       setLoadingTrades(false);
       return;
     }
+    setTrades(tradesData.map(t => ({ ...t, pnl: Number(t.pnl) })));
 
-    setTrades(tradesData.map(t => ({ 
-      ...t, 
-      pnl: Number(t.pnl) // Ensure PnL is a number
-    })));
-
-    // Fetch User Settings/Balance (Persistent Starting Balance)
-    const { data: settings, error: settingsError } = await supabase
-      .from('user_settings') // <-- FIX: Use correct table name 'user_settings'
-      .select('starting_balance') // <-- FIX: Use correct column name 'starting_balance'
-      .eq('user_id', user.id)
-      .single();
-
-    if (settingsError && settingsError.code !== 'PGRST116') { // PGRST116 is 'no rows found'
+    const { data: settings, error: settingsError } = await supabase.from('user_settings').select('starting_balance').eq('user_id', user.id).single();
+    if (settingsError && settingsError.code !== 'PGRST116') {
       console.error('Error fetching settings:', settingsError);
     } else if (settings) {
-      // FIX: Set the persistent 'balance' state from the fetched setting
       setBalance(settings.starting_balance); 
     } else {
-      // If no setting, insert a default one with the current default balance (10000)
-      await supabase
-        .from('user_settings')
-        .upsert({ user_id: user.id, starting_balance: balance }, { onConflict: 'user_id' }); 
+      await supabase.from('user_settings').upsert({ user_id: user.id, starting_balance: balance }, { onConflict: 'user_id' }); 
     }
-    
     setLoadingTrades(false);
   };
 
@@ -1278,70 +1104,33 @@ const App = () => {
     fetchInitialData();
   }, [user]);
 
-  // Handler for adding/editing a trade
   const handleSave = async (tradeToSave) => {
     const isEditing = !!tradeToSave.id;
     const { pnl, ...rest } = tradeToSave;
 
     try {
       if (isEditing) {
-        // Update the trade
-        const { error, data: updatedTrade } = await supabase
-          .from('trades')
-          .update({ 
-            ...rest, 
-            pnl: pnl,
-            user_id: user.id
-          })
-          .eq('id', tradeToSave.id)
-          .select()
-          .single();
-
+        const { error, data: updatedTrade } = await supabase.from('trades').update({ ...rest, pnl: pnl, user_id: user.id }).eq('id', tradeToSave.id).select().single();
         if (error) throw error;
         setTrades(trades.map(t => (t.id === updatedTrade.id ? updatedTrade : t)));
-
       } else {
-        // Insert new trade
-        const { error, data: newTrade } = await supabase
-          .from('trades')
-          .insert([{ 
-            ...rest, 
-            pnl: pnl,
-            user_id: user.id 
-          }])
-          .select()
-          .single();
-        
+        const { error, data: newTrade } = await supabase.from('trades').insert([{ ...rest, pnl: pnl, user_id: user.id }]).select().single();
         if (error) throw error;
-        
         setTrades([newTrade, ...trades]);
       }
     } catch (error) {
-      console.      console.error('Error saving trade:', error);
+      console.error('Error saving trade:', error);
       throw new Error("Failed to save trade entry.");
     }
   };
 
-  // Handler for deleting a trade
   const handleDelete = async (trade) => {
     if (!window.confirm(`Are you sure you want to delete the trade for ${trade.pair} on ${trade.date}? This action is irreversible.`)) {
       return;
     }
-    
     try {
-      const { error } = await supabase
-        .from('trades')
-        .delete()
-        .eq('id', trade.id);
-
+      const { error } = await supabase.from('trades').delete().eq('id', trade.id);
       if (error) throw error;
-
-      // The dynamic calculation of current balance makes explicit updates here unnecessary,
-      // but we remove the trade from the local state to trigger a re-render.
-      
-      // If a trade is deleted, we don't need to change the persistent 'balance' state, 
-      // as 'balance' is the starting balance and totalPnL is recalculated from the remaining trades.
-
       setTrades(trades.filter(t => t.id !== trade.id));
     } catch (error) {
       console.error('Error deleting trade:', error);
@@ -1352,50 +1141,33 @@ const App = () => {
     setEditTrade(trade);
     setModalOpen(true);
   };
-
   
   const handleBalanceUpdate = async (changeAmount) => {
-    // 'balance' stores the persistent starting balance (initial + deposits/withdrawals)
     const newBalance = balance + changeAmount; 
     await updateBalanceInDB(newBalance);
     setBalance(newBalance); 
   };
 
-  // Sign Out Handlers
-  const triggerSignOut = () => {
-    setSignOutModalOpen(true);
-  };
-  
+  const triggerSignOut = () => setSignOutModalOpen(true);
   const confirmSignOut = async () => {
     const { error } = await signOut();
     if (error) console.error("Error signing out:", error);
     setSignOutModalOpen(false);
   };
 
-  // Filtering/Searching (Mock Implementation)
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({ outcome: '', pair: '' });
   
   const filteredTrades = useMemo(() => {
     let filtered = trades;
-    
     if (searchTerm) {
       const lowerSearchTerm = searchTerm.toLowerCase();
       filtered = filtered.filter(trade => 
-        trade.pair.toLowerCase().includes(lowerSearchTerm) || 
-        trade.setup?.toLowerCase().includes(lowerSearchTerm) || 
-        trade.notes?.toLowerCase().includes(lowerSearchTerm) 
+        trade.pair.toLowerCase().includes(lowerSearchTerm) || trade.setup?.toLowerCase().includes(lowerSearchTerm) || trade.notes?.toLowerCase().includes(lowerSearchTerm) 
       );
     }
-
-    if (filters.outcome) {
-      filtered = filtered.filter(trade => trade.outcome === filters.outcome);
-    }
-
-    if (filters.pair) {
-      filtered = filtered.filter(trade => trade.pair === filters.pair);
-    }
-    
+    if (filters.outcome) filtered = filtered.filter(trade => trade.outcome === filters.outcome);
+    if (filters.pair) filtered = filtered.filter(trade => trade.pair === filters.pair);
     return filtered;
   }, [trades, searchTerm, filters]);
 
@@ -1408,8 +1180,6 @@ const App = () => {
     setFilters(prev => ({ ...prev, [name]: prev[name] === value ? '' : value }));
   };
 
-
-  // Dashboard Content
   const renderContent = () => {
     if (loadingTrades) {
       return (
@@ -1422,60 +1192,29 @@ const App = () => {
 
     switch (currentView) {
       case 'dashboard':
-        // 🎯 FIX 1: Use updated getKPIs to calculate PnL percentage and W/L counts
-        const { 
-          totalPnL, winRate, rr, totalTrades, 
-          pnlPercentage, winsCount, lossesCount 
-        } = getKPIs(trades, balance); // Pass persistent balance
-
+        const { totalPnL, winRate, rr, totalTrades, pnlPercentage, winsCount, lossesCount } = getKPIs(trades, balance);
         const currentEquityForDisplay = balance + totalPnL; 
 
         return (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            <h1 className="text-3xl font-bold text-white mb-6">Dashboard Overview</h1>
+          <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4 sm:mb-6">Dashboard Overview</h1>
             
-            {/* KPI STATS */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                <StatsWidget 
-                  label="Current Equity" 
-                  value={formatCurrency(currentEquityForDisplay)} 
-                  subValue={totalPnL >= 0 ? `Total Profit: ${formatCurrency(totalPnL)}` : `Total Loss: ${formatCurrency(totalPnL)}`} 
-                  icon={Wallet} 
-                  accentColor={THEME.accent.green} 
-                />
-                <StatsWidget 
-                  label="Total PnL" 
-                  value={formatCurrency(totalPnL)} 
-                  // 🎯 FIX 2: Use calculated pnlPercentage for trend
-                  trend={pnlPercentage.toFixed(1)} 
-                  icon={PieIcon} 
-                  accentColor={totalPnL >= 0 ? THEME.accent.green : THEME.accent.red} 
-                />
-                <StatsWidget 
-                  label="Win Rate" 
-                  value={`${winRate.toFixed(1)}%`} 
-                  // 🎯 FIX 3: Add subValue for W/L count
-                  subValue={`${winsCount}W / ${lossesCount}L`}
-                  icon={Target} 
-                  accentColor={THEME.accent.cyan} 
-                />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+                <StatsWidget label="Current Equity" value={formatCurrency(currentEquityForDisplay)} subValue={totalPnL >= 0 ? `Profit: ${formatCurrency(totalPnL)}` : `Loss: ${formatCurrency(totalPnL)}`} icon={Wallet} accentColor={THEME.accent.green} />
+                <StatsWidget label="Total PnL" value={formatCurrency(totalPnL)} trend={pnlPercentage.toFixed(1)} icon={PieIcon} accentColor={totalPnL >= 0 ? THEME.accent.green : THEME.accent.red} />
+                <StatsWidget label="Win Rate" value={`${winRate.toFixed(1)}%`} subValue={`${winsCount}W / ${lossesCount}L`} icon={Target} accentColor={THEME.accent.cyan} />
                 <StatsWidget label="Average R:R" value={`1:${rr.toFixed(2)}`} icon={TrendingUp} accentColor={THEME.accent.purple} />
             </div>
 
-            {/* CHARTS */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
                 <EquityCurveWidget trades={trades} startingBalance={balance} />
                 <CalendarWidget trades={trades} />
             </div>
 
-            {/* Quick Trade List */}
-            <div className='pt-4'>
+            <div className='pt-2 sm:pt-4'>
                 <div className='flex justify-between items-center mb-4'>
                     <h2 className="text-xl font-bold text-white">Recent Trades</h2>
-                    <button 
-                      onClick={() => setCurrentView('journal')} 
-                      className="text-sm font-medium text-[#A479FF] hover:text-white transition-colors"
-                    >
+                    <button onClick={() => setCurrentView('journal')} className="text-sm font-medium text-[#A479FF] hover:text-white transition-colors" >
                         View All ({totalTrades}) <ChevronRight size={16} className="inline-block ml-1" />
                     </button>
                 </div>
@@ -1484,61 +1223,34 @@ const App = () => {
           </div>
         );
       case 'journal':
-        const { totalTrades: allTradesCount } = getKPIs(trades, balance); // Recalculate only for count, rest handled by filteredTrades below
+        const { totalTrades: allTradesCount } = getKPIs(trades, balance); 
         return (
-          <div className="space-y-6">
-            <h1 className="text-3xl font-bold text-white mb-6">Trade Journal ({allTradesCount})</h1>
+          <div className="space-y-4 sm:space-y-6">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4 sm:mb-6">Trade Journal ({allTradesCount})</h1>
             
-            {/* Search & Filter Bar */}
             <Card className="p-4 flex flex-col md:flex-row gap-4 items-stretch md:items-center">
                 <div className="flex-1 relative">
                     <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                    <input 
-                      type="text" 
-                      placeholder="Search by pair, setup, or notes..." 
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className={`${inputClass} pl-10 bg-[#0C0F14]`}
-                    />
+                    <input type="text" placeholder="Search by pair, setup, or notes..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className={`${inputClass} pl-10 bg-[#0C0F14]`} />
                 </div>
                 <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-sm text-gray-400 font-medium hidden sm:block">Filter:</span>
-                    
-                    {/* Outcome Filter */}
                     <div className="flex space-x-2">
                         {['WIN', 'LOSS', 'BREAKEVEN'].map(outcome => (
-                            <button
-                                key={outcome}
-                                onClick={() => toggleFilter('outcome', outcome)}
-                                className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-200 ${
-                                    filters.outcome === outcome 
-                                        ? 'bg-[#A479FF] text-white border-[#A479FF] shadow-lg shadow-[#A479FF]/20' 
-                                        : 'bg-transparent text-gray-400 border-white/10 hover:border-white/30'
-                                }`}
-                            >
+                            <button key={outcome} onClick={() => toggleFilter('outcome', outcome)} className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-200 ${filters.outcome === outcome ? 'bg-[#A479FF] text-white border-[#A479FF] shadow-lg shadow-[#A479FF]/20' : 'bg-transparent text-gray-400 border-white/10 hover:border-white/30'}`} >
                                 {outcome}
                             </button>
                         ))}
                     </div>
-
-                    {/* Pair Filter */}
                     <div className="relative">
-                        <select 
-                            value={filters.pair} 
-                            onChange={(e) => toggleFilter('pair', e.target.value)}
-                            className={`${selectClass} py-1.5 pr-8 text-xs h-9 bg-[#0C0F14] appearance-none`}
-                        >
+                        <select value={filters.pair} onChange={(e) => toggleFilter('pair', e.target.value)} className={`${selectClass} py-1.5 pr-8 text-xs h-9 bg-[#0C0F14] appearance-none`} >
                             <option value="">All Pairs</option>
-                            {pairFilterOptions.map(pair => (
-                                <option key={pair} value={pair}>{pair}</option>
-                            ))}
+                            {pairFilterOptions.map(pair => <option key={pair} value={pair}>{pair}</option>)}
                         </select>
                         <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
                     </div>
                 </div>
             </Card>
-
-            {/* Trade List */}
             <TradeList trades={filteredTrades} onEdit={handleEdit} onDelete={handleDelete} />
           </div>
         );
@@ -1551,153 +1263,65 @@ const App = () => {
     }
   };
 
-  // --- Render Authentication Screen ---
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0C0F14] p-4">
         <div className="w-full max-w-sm">
-          <div className="flex justify-center mb-8">
-            <MuyeFXLogo />
-          </div>
-          <h1 className="text-3xl font-bold text-white text-center mb-6">
-            Muye<span className="text-gray-500">FX</span> Login
-          </h1>
-          <Auth
-            supabaseClient={supabase}
-            appearance={{ 
-              theme: 'dark',
-              variables: {
-                default: {
-                  colors: {
-                    brand: '#A479FF',
-                    brandAccent: '#9361FF',
-                    brandButtonText: '#FFFFFF',
-                    defaultButtonBackground: '#131619',
-                    defaultButtonText: '#FFFFFF',
-                    defaultButtonBorder: 'hsl(0 0% 100% / 0.1)',
-                    inputBackground: '#0C0F14',
-                    inputBorder: 'hsl(0 0% 100% / 0.1)',
-                  },
-                },
-              },
-            }}
-            providers={['google']}
-            view="sign_in"
-            localization={{
-              variables: {
-                sign_in: {
-                  email_label: 'Email Address',
-                  password_label: 'Password',
-                  button_label: 'Sign In',
-                  social_provider_text: 'Continue with {{provider}}',
-                  link_text: 'Already have an account? Sign In',
-                },
-                sign_up: {
-                  email_label: 'Email Address',
-                  password_label: 'Create a Password',
-                  button_label: 'Sign Up',
-                  social_provider_text: 'Continue with {{provider}}',
-                  link_text: "Don't have an account...",
-                },
-              },
-            }}
-          />
+          <div className="flex justify-center mb-8"><MuyeFXLogo /></div>
+          <h1 className="text-3xl font-bold text-white text-center mb-6">Muye<span className="text-gray-500">FX</span> Login</h1>
+          <Auth supabaseClient={supabase} appearance={{ theme: 'dark', variables: { default: { colors: { brand: '#A479FF', brandAccent: '#9361FF', brandButtonText: '#FFFFFF', defaultButtonBackground: '#131619', defaultButtonText: '#FFFFFF', defaultButtonBorder: 'hsl(0 0% 100% / 0.1)', inputBackground: '#0C0F14', inputBorder: 'hsl(0 0% 100% / 0.1)', }, }, }, }} providers={['google']} view="sign_in" />
         </div>
       </div>
     );
   }
 
-  // Calculate currentEquity for the EditBalanceModal prop and the UI display
   const { totalPnL } = getKPIs(trades, balance);
-  const currentEquityForModal = balance + totalPnL; // The actual current equity
+  const currentEquityForModal = balance + totalPnL; 
 
-
-  // --- Render Main Application ---
   return (
-    // FIX: Wrapped all top-level elements in a React Fragment (<>...</>)
     <> 
-      <div className={`min-h-screen ${THEME.bg} flex ${THEME.text.primary} relative`}>
+      <div className={`min-h-screen ${THEME.bg} flex ${THEME.text.primary} relative overflow-x-hidden`}>
+        <div className="hidden md:flex fixed w-64 h-full z-20">
+          <Sidebar currentView={currentView} setCurrentView={setCurrentView} triggerSignOut={triggerSignOut} />
+        </div>
         
-        {/* Sidebar */}
-        <Sidebar 
-          currentView={currentView} 
-          setCurrentView={setCurrentView} 
-          triggerSignOut={triggerSignOut} 
-        />
-        
-        {/* Mobile Sidebar Overlay */}
         {isSidebarOpen && (
-          <div 
-            className="md:hidden fixed inset-0 bg-black/50 z-40 transition-opacity" 
-            onClick={() => setIsSidebarOpen(false)} 
-          />
+          <div className="fixed inset-0 bg-black/40 z-[998] transition-opacity" onClick={() => setIsSidebarOpen(false)} />
         )}
-        <div className={`fixed top-0 left-0 w-64 h-full bg-[#0C0F14] border-r border-white/5 z-50 transform transition-transform duration-300 md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className={`fixed top-0 left-0 h-full w-64 bg-[#0C0F14] border-r border-white/5 z-[999] transform transition-transform duration-300 md:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <Sidebar currentView={currentView} setCurrentView={setCurrentView} triggerSignOut={triggerSignOut} />
           <IconButton icon={X} onClick={() => setIsSidebarOpen(false)} className="absolute top-4 right-4 text-white hover:text-[#A479FF] z-50" />
         </div>
 
-
-        {/* Main Content Area */}
-        <main className="flex-1 md:ml-64 flex flex-col transition-all duration-300">
-          
-          {/* Header (fixed at top) */}
-          <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-white/5 bg-[#0C0F14] sticky top-0 z-30">
+        <main className="flex-1 md:ml-64 flex flex-col transition-all duration-300 min-w-0">
+          <header className="h-20 flex items-center justify-between px-4 sm:px-8 border-b border-white/5 bg-[#0C0F14] sticky top-0 z-30">
             <div className="flex items-center gap-4">
               <IconButton icon={Menu} onClick={() => setIsSidebarOpen(true)} className="md:hidden" />
               <h1 className="text-xl font-semibold capitalize hidden md:block">{currentView}</h1>
             </div>
             <div className="flex items-center gap-4">
               <span className="text-sm font-medium text-gray-400 hidden sm:inline">Balance: <span className="text-white font-mono font-bold">{formatCurrency(currentEquityForModal)}</span></span>
-              
-              <button 
-                onClick={() => setBalanceModalOpen(true)}
-                className="py-2 px-4 text-sm font-medium rounded-xl bg-[#A479FF]/10 text-[#A479FF] hover:bg-[#A479FF]/20 transition-colors flex items-center gap-2"
-              >
+              <button onClick={() => setBalanceModalOpen(true)} className="py-2 px-4 text-sm font-medium rounded-xl bg-[#A479FF]/10 text-[#A479FF] hover:bg-[#A479FF]/20 transition-colors flex items-center gap-2">
                 <Wallet size={18} /> <span className="hidden md:inline">Edit Balance</span>
               </button>
-              <button 
-                onClick={() => { setEditTrade(null); setModalOpen(true); }}
-                className="py-2 px-4 text-sm font-medium rounded-xl bg-[#3CFF64] text-black hover:bg-[#2EB84D] transition-colors flex items-center gap-2"
-              >
+              <button onClick={() => { setEditTrade(null); setModalOpen(true); }} className="py-2 px-4 text-sm font-medium rounded-xl bg-[#3CFF64] text-black hover:bg-[#2EB84D] transition-colors flex items-center gap-2">
                 <Plus size={18} /> <span className="hidden md:inline">New Trade</span>
               </button>
             </div>
           </header>
 
-          {/* Content Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 z-10">
-            <div className="max-w-7xl mx-auto">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 z-10">
+            <div className="max-w-7xl mx-auto pb-safe">
               {renderContent()}
             </div>
           </div>
         </main>
       </div>
 
-      {/* Modals */}
-      <TradeModal 
-        isOpen={modalOpen} 
-        onClose={() => setModalOpen(false)} 
-        onSave={handleSave} 
-        tradeToEdit={editTrade} 
-        user={user}
-      />
-
-      <EditBalanceModal 
-        isOpen={balanceModalOpen}
-        onClose={() => setBalanceModalOpen(false)}
-        currentBalance={currentEquityForModal} 
-        onUpdate={handleBalanceUpdate}
-      />
+      <TradeModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSave={handleSave} tradeToEdit={editTrade} user={user} />
+      <EditBalanceModal isOpen={balanceModalOpen} onClose={() => setBalanceModalOpen(false)} currentBalance={currentEquityForModal} onUpdate={handleBalanceUpdate} />
+      <SignOutConfirmationModal isOpen={signOutModalOpen} onClose={() => setSignOutModalOpen(false)} onConfirm={confirmSignOut} />
       
-      {/* Sign Out Modal */}
-      <SignOutConfirmationModal
-        isOpen={signOutModalOpen}
-        onClose={() => setSignOutModalOpen(false)}
-        onConfirm={confirmSignOut}
-      />
-      
-      {/* Global CSS for Recharts override */}
       <style>{`
         .recharts-tooltip-cursor { fill: rgba(255,255,255,0.05) !important; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
