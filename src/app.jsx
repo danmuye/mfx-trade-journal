@@ -584,6 +584,19 @@ const MobileTradeCard = ({ trade, onExpand, isExpanded, onEdit, onDelete }) => (
     
     {isExpanded && (
         <div className="mt-4 pt-4 border-t border-white/5 space-y-3 animate-in slide-in-from-top-2 duration-200">
+             {/* Prices */}
+             {(trade.entry || trade.exit) && (
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-[#0C0F14] p-3 rounded-lg border border-white/5">
+                        <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Entry Price</p>
+                        <p className="text-sm text-gray-300 font-mono">{trade.entry || '-'}</p>
+                    </div>
+                    <div className="bg-[#0C0F14] p-3 rounded-lg border border-white/5">
+                        <p className="text-[10px] text-gray-500 uppercase font-semibold mb-1">Exit Price</p>
+                        <p className="text-sm text-gray-300 font-mono">{trade.exit || '-'}</p>
+                    </div>
+                </div>
+            )}
              {/* Notes */}
              {trade.notes && (
                 <div>
@@ -701,12 +714,23 @@ const TradeList = ({ trades, onEdit, onDelete }) => {
                                     <tr className="bg-white/[0.01]">
                                         <td colSpan="8" className="p-6 border-b border-white/5">
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                                {trade.notes && (
-                                                    <div className="col-span-1">
-                                                        <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Notes & Rationale</p>
-                                                        <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.notes}</p>
-                                                    </div>
-                                                )}
+                                                <div className="col-span-1">
+                                                    {(trade.entry || trade.exit) && (
+                                                        <div className="mb-4">
+                                                            <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Prices</p>
+                                                            <div className="flex gap-4 text-sm font-mono text-white">
+                                                                <span className="text-gray-400">Entry: <span className='text-white'>{trade.entry || '-'}</span></span>
+                                                                <span className="text-gray-400">Exit: <span className='text-white'>{trade.exit || '-'}</span></span>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                    {trade.notes && (
+                                                        <div>
+                                                            <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Notes & Rationale</p>
+                                                            <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.notes}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
                                                 {trade.learnings && (
                                                     <div className="col-span-1">
                                                         <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Key Learning</p>
@@ -800,7 +824,7 @@ const initialTradeState = {
   pair: 'EUR/USD',
   type: 'Long',
   outcome: 'WIN',
-  pnl: 0,
+  pnl: '', // Changed to empty string to allow negative sign input
   setup: '',
   session: 'London',
   notes: '',
@@ -808,7 +832,9 @@ const initialTradeState = {
   learnings: '',
   tags: [],
   screenshot_url: '',
-  balance_change: 0 
+  // NEW FIELDS (Renamed to match user's DB schema)
+  entry: '',
+  exit: '',
 };
 
 const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
@@ -821,16 +847,23 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
     if (isOpen) {
       setError('');
       if (tradeToEdit) {
-        setTrade({ ...tradeToEdit, pnl: Number(tradeToEdit.pnl), tags: tradeToEdit.tags || [] });
+        setTrade({ 
+          ...tradeToEdit, 
+          pnl: String(tradeToEdit.pnl), // Convert pnl to string for the text input
+          entry: tradeToEdit.entry ? String(tradeToEdit.entry) : '', // MATCH DB SCHEMA
+          exit: tradeToEdit.exit ? String(tradeToEdit.exit) : '',     // MATCH DB SCHEMA
+          tags: tradeToEdit.tags || [] 
+        });
       } else {
         setTrade(initialTradeState);
       }
     }
   }, [isOpen, tradeToEdit]);
 
+  // Simplified handleChange to keep all values as strings, allowing the '-' sign for PnL
   const handleChange = (e) => {
-    const { name, value, type } = e.target;
-    setTrade(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+    const { name, value } = e.target;
+    setTrade(prev => ({ ...prev, [name]: value }));
   };
   
   const handleTagChange = (newTags) => {
@@ -871,11 +904,40 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
     e.preventDefault();
     if (isUploading) return;
     setError('');
+    
+    // --- UPDATED PARSING LOGIC for PnL and Prices (using 'entry' and 'exit') ---
+    const pnlValue = parseFloat(trade.pnl);
+    // Use null for empty string or non-numeric input for optional price fields
+    const entryValue = trade.entry ? parseFloat(trade.entry) : null;
+    const exitValue = trade.exit ? parseFloat(trade.exit) : null;
+
+    if (isNaN(pnlValue)) {
+        setError('Please enter a valid PnL amount (e.g., 50.75 or -25.00).');
+        return;
+    }
+    // Check if the input is present but invalid (not null, not an empty string, and not a number)
+    if (trade.entry && !isNaN(trade.entry) && isNaN(entryValue)) {
+        setError('Please enter a valid number for Entry Price, or leave it blank.');
+        return;
+    }
+    if (trade.exit && !isNaN(trade.exit) && isNaN(exitValue)) {
+        setError('Please enter a valid number for Exit Price, or leave it blank.');
+        return;
+    }
+
     try {
-      const tradeToSave = { ...trade, date: trade.date, pnl: Number(trade.pnl), tags: trade.tags.filter(t => t.length > 0) };
+      const tradeToSave = { 
+        ...trade, 
+        pnl: pnlValue, // Pass parsed number
+        entry: entryValue, // Pass parsed number or null (MATCH DB SCHEMA)
+        exit: exitValue,   // Pass parsed number or null (MATCH DB SCHEMA)
+        tags: trade.tags.filter(t => t.length > 0) 
+      };
       await onSave(tradeToSave);
       onClose(); 
     } catch (err) {
+      // The reported error was here.
+      // If the error persists, it will be due to RLS or other configuration issues, not schema mismatch.
       setError(`Failed to save trade: ${err.message}`);
     }
   };
@@ -939,7 +1001,8 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             </select>
           </InputGroup>
           <InputGroup label="PnL ($)">
-            <input type="number" name="pnl" value={trade.pnl} onChange={handleChange} className={`${inputClass} font-mono`} step="0.01" placeholder="e.g., 50.75 or -25.00" required />
+            {/* UPDATED: Changed to type="text" to allow negative sign input */}
+            <input type="text" name="pnl" value={trade.pnl} onChange={handleChange} className={`${inputClass} font-mono`} placeholder="e.g., 50.75 or -25.00" required />
           </InputGroup>
           <InputGroup label="Outcome">
             <select name="outcome" value={trade.outcome} onChange={handleChange} className={selectClass} required>
@@ -949,6 +1012,20 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
             </select>
           </InputGroup>
         </div>
+        
+        {/* MATCHING USER'S DB COLUMNS: 'entry' and 'exit' */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <InputGroup label="Entry Price (Optional)">
+                {/* Renamed name to 'entry' */}
+                <input type="text" name="entry" value={trade.entry} onChange={handleChange} className={`${inputClass} font-mono`} placeholder="e.g., 1.07542" />
+            </InputGroup>
+            <InputGroup label="Exit Price (Optional)">
+                {/* Renamed name to 'exit' */}
+                <input type="text" name="exit" value={trade.exit} onChange={handleChange} className={`${inputClass} font-mono`} placeholder="e.g., 1.07600" />
+            </InputGroup>
+        </div>
+        {/* END DB MATCH */}
+
         <InputGroup label="Trading Session">
           <select name="session" value={trade.session} onChange={handleChange} className={selectClass} required>
             {sessionOptions.map(s => <option key={s} value={s}>{s}</option>)}
@@ -1105,6 +1182,7 @@ const App = () => {
     }
     setLoadingTrades(true);
 
+    // Fetch all columns, including 'entry' and 'exit'
     const { data: tradesData, error: tradesError } = await supabase.from('trades').select('*').eq('user_id', user.id).order('date', { ascending: false });
     if (tradesError) {
       console.error('Error fetching trades:', tradesError);
@@ -1130,21 +1208,36 @@ const App = () => {
 
   const handleSave = async (tradeToSave) => {
     const isEditing = !!tradeToSave.id;
-    const { pnl, ...rest } = tradeToSave;
+    // PnL, entry, and exit are already parsed to number/null in TradeModal's handleSubmit
+    // Use 'entry' and 'exit' to match the user's DB schema
+    const { pnl, entry, exit, ...rest } = tradeToSave; 
 
     try {
       if (isEditing) {
-        const { error, data: updatedTrade } = await supabase.from('trades').update({ ...rest, pnl: pnl, user_id: user.id }).eq('id', tradeToSave.id).select().single();
+        const { error, data: updatedTrade } = await supabase.from('trades').update({ 
+            ...rest, 
+            pnl: pnl, 
+            entry: entry, // MATCH DB SCHEMA
+            exit: exit,   // MATCH DB SCHEMA
+            user_id: user.id 
+        }).eq('id', tradeToSave.id).select().single();
         if (error) throw error;
         setTrades(trades.map(t => (t.id === updatedTrade.id ? updatedTrade : t)));
       } else {
-        const { error, data: newTrade } = await supabase.from('trades').insert([{ ...rest, pnl: pnl, user_id: user.id }]).select().single();
+        const { error, data: newTrade } = await supabase.from('trades').insert([{ 
+            ...rest, 
+            pnl: pnl, 
+            entry: entry, // MATCH DB SCHEMA
+            exit: exit,   // MATCH DB SCHEMA
+            user_id: user.id 
+        }]).select().single();
         if (error) throw error;
         setTrades([newTrade, ...trades]);
       }
     } catch (error) {
       console.error('Error saving trade:', error);
-      throw new Error("Failed to save trade entry.");
+      // NOTE: This will now properly log any *other* issue if the save fails
+      throw new Error(`Failed to save trade entry: ${error.message}`);
     }
   };
 
