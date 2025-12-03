@@ -4,7 +4,7 @@ import {
   Filter, TrendingUp, Target, BrainCircuit, X, Save, Camera, 
   MoreHorizontal, Pencil, Trash2, LogOut, ChevronLeft, ChevronRight, 
   CalendarDays, HeartHandshake, Wallet, ArrowUpRight, ArrowDownRight,
-  PieChart as PieIcon, Menu, ChevronUp
+  PieChart as PieIcon, Menu, ChevronUp, ChevronDown // Added ChevronDown for select
 } from 'lucide-react';
 import { 
   AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, 
@@ -12,6 +12,8 @@ import {
 } from 'recharts';
 // NOTE: Assuming this imports Auth and the client instance
 import { supabase, useAuth, Auth } from './supabase'; 
+
+import MuyeFxLogoImage from './Logo Muye FX CMYK.jpg'; 
 
 // --- 🎨 DESIGN SYSTEM & UTILS ---
 const THEME = {
@@ -105,17 +107,37 @@ const TRADEABLE_ASSETS = {
   'Other': ['Custom Pair']
 };
 
-const getKPIs = (trades) => {
+// 🎯 FIX 1: Updated getKPIs to calculate pnlPercentage and return wins/losses count
+const getKPIs = (trades, startingBalance) => { 
   const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
+  const totalTrades = trades.length;
+  const winsCount = trades.filter(t => t.outcome === 'WIN').length; 
+  const lossesCount = trades.filter(t => t.outcome === 'LOSS').length; 
+  
+  const winRate = totalTrades > 0 ? (winsCount / totalTrades) * 100 : 0;
+  
+  // Calculate PnL Percentage (against the persistent starting balance)
+  const initialEquity = startingBalance > 0 ? startingBalance : 10000;
+  
+  const pnlPercentage = initialEquity !== 0 
+    ? (totalPnL / initialEquity) * 100 
+    : 0;
+  
   const wins = trades.filter(t => t.outcome === 'WIN');
   const losses = trades.filter(t => t.outcome === 'LOSS');
-  const winRate = trades.length > 0 ? (wins.length / trades.length) * 100 : 0;
-  
-  const avgWin = wins.length > 0 ? wins.reduce((acc, t) => acc + t.pnl, 0) / wins.length : 0;
-  const avgLoss = losses.length > 0 ? Math.abs(losses.reduce((acc, t) => acc + t.pnl, 0)) / losses.length : 0;
+  const avgWin = winsCount > 0 ? wins.reduce((acc, t) => acc + t.pnl, 0) / winsCount : 0;
+  const avgLoss = lossesCount > 0 ? Math.abs(losses.reduce((acc, t) => acc + t.pnl, 0)) / lossesCount : 0;
   const rr = avgLoss > 0 ? (avgWin / avgLoss) : 0;
 
-  return { totalPnL, winRate, rr, totalTrades: trades.length };
+  return { 
+    totalPnL, 
+    winRate, 
+    rr, 
+    totalTrades,
+    pnlPercentage, // 🆕 Used for the trend arrow
+    winsCount,     // 🆕 Used for W/L display
+    lossesCount    // 🆕 Used for W/L display
+  };
 };
 
 const getCalendarData = (trades) => {
@@ -279,7 +301,23 @@ const MobileNav = ({ currentView, setCurrentView }) => {
   );
 };
 
-const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { // Updated prop name to triggerSignOut
+// --- START LOGO CUSTOMIZATION ---
+const MuyeFXLogo = () => (
+    <div className="flex items-center justify-start gap-3">
+        <img 
+            src={MuyeFxLogoImage} 
+            alt="MuyeFX Logo" 
+            className="h-10 w-auto" 
+        />
+        <span className="text-xl font-extrabold tracking-tight" style={{ color: '#EBEBEB', fontFamily: 'Arial, sans-serif' }}>
+          MUYE<span style={{ color: '#3CFF64' }}>FX</span>
+        </span>
+    </div>
+);
+// --- END LOGO CUSTOMIZATION ---
+
+
+const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { 
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
     { id: 'journal', icon: BookOpen, label: 'Journal' },
@@ -289,9 +327,8 @@ const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { // Update
 
   return (
     <aside className="hidden md:flex w-64 border-r border-white/5 flex-col bg-[#0C0F14] z-20 fixed h-full transition-all duration-300">
-      <div className="h-20 flex items-center justify-start px-6 border-b border-white/5 gap-3">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#A479FF] to-[#4FF3F9] flex items-center justify-center text-black font-bold">M</div>
-        <span className="text-lg font-medium tracking-tight text-white">Muye<span className="text-gray-500">FX</span></span>
+      <div className="h-20 flex items-center justify-start px-6 border-b border-white/5">
+        <MuyeFXLogo />
       </div>
       
       <nav className="flex-1 p-4 space-y-2">
@@ -330,9 +367,9 @@ const StatsWidget = ({ label, value, subValue, trend, icon: Icon, accentColor })
         <Icon size={20} style={{ color: accentColor }} />
         </div>
       {trend && (
-        <span className={`flex items-center text-xs font-medium ${trend > 0 ? 'text-[#3CFF64]' : 'text-[#FF4D4D]'}`}>
-          {trend > 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-          {Math.abs(trend)}%
+        <span className={`flex items-center text-xs font-medium ${parseFloat(trend) >= 0 ? 'text-[#3CFF64]' : 'text-[#FF4D4D]'}`}>
+          {parseFloat(trend) >= 0 ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
+          {Math.abs(parseFloat(trend))}%
         </span>
       )}
     </div>
@@ -424,12 +461,17 @@ const CalendarWidget = ({ trades }) => {
   );
 };
 
-const EquityCurveWidget = ({ trades }) => {
-  let balance = 0;
+const EquityCurveWidget = ({ trades, startingBalance }) => {
+  let balance = startingBalance;
   const data = trades.slice().reverse().map(t => {
     balance += t.pnl;
     return { ...t, balance };
   });
+
+  // If there are no trades, just show a flat line starting at the initial balance
+  if (data.length === 0) {
+      data.push({ date: new Date().toISOString().substring(0, 10), balance: startingBalance });
+  }
 
   return (
     <Card className="col-span-1 h-full min-h-[400px]" noPadding>
@@ -588,657 +630,1035 @@ const MistakesView = ({ trades, onEdit }) => {
 };
 
 // --- 📝 TRADE LIST & MODAL ---
-
 const TradeList = ({ trades, onEdit, onDelete }) => {
-  // NEW STATE: Tracks which trade ID is currently expanded
-  const [expandedTradeId, setExpandedTradeId] = useState(null);
+    const [expandedTradeId, setExpandedTradeId] = useState(null);
+    const toggleExpand = (id) => {
+        setExpandedTradeId(prevId => prevId === id ? null : id);
+    };
 
-  const toggleExpand = (id) => {
-    setExpandedTradeId(prevId => prevId === id ? null : id);
-  };
+    return (
+        <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#131619]">
+            <table className="w-full text-left border-collapse min-w-[850px] lg:min-w-0">
+                <thead>
+                    <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-white/5">
+                        <th className="p-4 pl-6">Date</th>
+                        <th className="p-4">Pair</th>
+                        <th className="p-4">Type</th>
+                        <th className="p-4">Setup</th>
+                        <th className="p-4 text-right">PnL</th>
+                        <th className="p-4 text-center">Status</th>
+                        <th className="p-4 text-center">Details</th> 
+                        <th className="p-4 text-right pr-6">Actions</th>
+                    </tr>
+                </thead>
+                <tbody className="text-sm text-gray-300">
+                    {trades.map((trade) => (
+                        <React.Fragment key={trade.id}>
+                            <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
+                                <td className="p-4 pl-6 font-mono text-gray-400">{trade.date}</td>
+                                <td className="p-4 font-medium text-white">{trade.pair}</td>
+                                <td className="p-4">
+                                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${trade.type === 'Long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
+                                        {trade.type}
+                                    </span>
+                                </td>
+                                <td className="p-4 text-gray-400">{trade.setup || '-'}</td>
+                                <td className={`p-4 text-right font-mono font-medium ${trade.pnl > 0 ? 'text-[#3CFF64]' : trade.pnl < 0 ? 'text-[#FF4D4D]' : 'text-gray-400'}`}>
+                                    {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
+                                </td>
+                                <td className="p-4 text-center">
+                                    <Badge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</Badge>
+                                </td>
+                                <td className="p-4 text-center">
+                                    <IconButton icon={expandedTradeId === trade.id ? ChevronUp : MoreHorizontal} onClick={() => toggleExpand(trade.id)} />
+                                </td>
+                                <td className="p-4 text-right pr-6">
+                                    <div className="flex justify-end items-center gap-2">
+                                        <IconButton icon={Pencil} onClick={() => onEdit(trade)} variant="ghost" className="opacity-70 group-hover:opacity-100" />
+                                        <IconButton icon={Trash2} onClick={() => onDelete(trade)} variant="danger" className="opacity-70 group-hover:opacity-100" />
+                                    </div>
+                                </td>
+                            </tr>
+                            {expandedTradeId === trade.id && (
+                                <tr className="bg-white/[0.01]">
+                                    <td colSpan="8" className="p-6 border-b border-white/5">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            {/* Notes */}
+                                            {trade.notes && (
+                                                <div className="col-span-1">
+                                                    <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Notes & Rationale</p>
+                                                    <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.notes}</p>
+                                                </div>
+                                            )}
+                                            
+                                            {/* Learnings */}
+                                            {trade.learnings && (
+                                                <div className="col-span-1">
+                                                    <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Key Learning</p>
+                                                    <p className="text-sm text-gray-300 whitespace-pre-wrap">{trade.learnings}</p>
+                                                </div>
+                                            )}
 
-  return (
-    <div className="overflow-x-auto rounded-xl border border-white/5 bg-[#131619]">
-      <table className="w-full text-left border-collapse min-w-[850px] lg:min-w-0">
-        <thead>
-          <tr className="text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-white/5">
-            <th className="p-4 pl-6">Date</th>
-            <th className="p-4">Pair</th>
-            <th className="p-4">Type</th>
-            <th className="p-4">Setup</th>
-            <th className="p-4 text-right">PnL</th>
-            <th className="p-4 text-center">Status</th>
-            <th className="p-4 text-center">Details</th> {/* NEW HEADER */}
-            <th className="p-4 text-right pr-6">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="text-sm text-gray-300">
-          {trades.map((trade) => (
-            <React.Fragment key={trade.id}>
-              <tr className="border-b border-white/5 hover:bg-white/[0.02] transition-colors group">
-                <td className="p-4 pl-6 font-mono text-gray-400">{trade.date}</td>
-                <td className="p-4 font-medium text-white">{trade.pair}</td>
-                <td className="p-4">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${trade.type === 'Long' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}`}>
-                    {trade.type}
-                  </span>
-                </td>
-                <td className="p-4 text-gray-400">{trade.setup || '-'}</td>
-                <td className={`p-4 text-right font-mono font-medium ${trade.pnl > 0 ? 'text-[#3CFF64]' : trade.pnl < 0 ? 'text-[#FF4D4D]' : 'text-gray-400'}`}>
-                  {trade.pnl > 0 ? '+' : ''}{trade.pnl.toFixed(2)}
-                </td>
-                <td className="p-4 text-center">
-                  <Badge type={trade.outcome === 'WIN' ? 'win' : 'loss'}>{trade.outcome}</Badge>
-                </td>
-                {/* NEW DETAILS CELL */}
-                <td className="p-4 text-center">
-                  <IconButton 
-                    icon={expandedTradeId === trade.id ? ChevronUp : MoreHorizontal} 
-                    onClick={() => toggleExpand(trade.id)} 
-                    className={expandedTradeId === trade.id ? 'text-[#A479FF] rotate-180' : 'text-gray-500'}
-                  />
-                </td>
-                {/* END NEW DETAILS CELL */}
-                <td className="p-4 pr-6 text-right">
-                  <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <IconButton icon={Pencil} onClick={() => onEdit(trade)} />
-                    <IconButton icon={Trash2} onClick={() => onDelete(trade)} variant="danger" />
-                  </div>
-                </td>
-              </tr>
-              
-              {/* EXPANDED DETAILS ROW */}
-              {expandedTradeId === trade.id && (
-                <tr className="bg-white/[0.03] transition-all">
-                  <td colSpan="8" className="p-4 pt-2">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-                      {trade.notes && (
-                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-white/5">
-                          <p className="text-gray-500 font-semibold mb-1 uppercase text-[10px]">Notes</p>
-                          <p className="text-gray-300 italic">{trade.notes}</p>
-                        </div>
-                      )}
-                      {trade.mistake && (
-                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#FF4D4D]/20">
-                          <p className="text-[#FF4D4D] font-semibold mb-1 uppercase text-[10px]">Mistake</p>
-                          <p className="text-gray-300 italic">{trade.mistake}</p>
-                        </div>
-                      )}
-                      {trade.learnings && (
-                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#3CFF64]/20">
-                          <p className="text-[#3CFF64] font-semibold mb-1 uppercase text-[10px]">Learnings</p>
-                          <p className="text-gray-300 italic">{trade.learnings}</p>
-                        </div>
-                      )}
-                      {trade.tags && trade.tags.length > 0 && (
-                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#4FF3F9]/20">
-                          <p className="text-[#4FF3F9] font-semibold mb-1 uppercase text-[10px]">Tags</p>
-                          <div className='flex flex-wrap gap-1'>
-                            {trade.tags.map((tag, i) => (
-                              <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-[#4FF3F9]/10 text-[#4FF3F9] font-medium">{tag}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* NEW SCREENSHOT VIEW BUTTON */}
-                      {trade.screenshot_url && (
-                        <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#A479FF]/20 flex items-center justify-between">
-                          <p className="text-[#A479FF] font-semibold uppercase text-[10px]">Chart Screenshot</p>
-                          <a 
-                            href={trade.screenshot_url} 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="flex items-center gap-1 text-xs text-[#A479FF] hover:text-white transition-colors"
-                          >
-                            <Camera size={14} /> 
-                            View Image
-                          </a>
-                        </div>
-                      )}
-                      {/* END NEW SCREENSHOT VIEW BUTTON */}
+                                            {/* Tags & Screenshot */}
+                                            <div className={`col-span-1 space-y-3 ${!trade.notes && !trade.learnings ? 'md:col-span-3' : ''}`}>
+                                                {/* Tags */}
+                                                {trade.tags && trade.tags.length > 0 && (
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {trade.tags.map((tag, i) => (
+                                                            <span key={i} className="px-2 py-0.5 text-xs rounded-full bg-[#4FF3F9]/10 text-[#4FF3F9] font-medium">{tag}</span>
+                                                        ))}
+                                                    </div>
+                                                )}
 
-                      {!trade.notes && !trade.mistake && !trade.learnings && (!trade.tags || trade.tags.length === 0) && !trade.screenshot_url && (
-                         <div className="col-span-3 text-center text-gray-500 p-2">No detailed notes logged for this trade.</div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </React.Fragment>
-          ))}
-        </tbody>
-      </table>
-      {trades.length === 0 && (
-        <div className="p-12 text-center text-gray-500 text-sm">No trades found. Start journaling.</div>
-      )}
-    </div>
-  );
+                                                {/* SCREENSHOT VIEW BUTTON */}
+                                                {trade.screenshot_url && (
+                                                    <div className="p-3 rounded-lg bg-[#0C0F14] border border-[#A479FF]/20 flex items-center justify-between">
+                                                        <p className="text-[#A479FF] font-semibold uppercase text-[10px]">Chart Screenshot</p>
+                                                        <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-[#A479FF] hover:text-white transition-colors" >
+                                                            <Camera size={14} /> View Image
+                                                        </a>
+                                                    </div>
+                                                )}
+
+                                                {!trade.notes && !trade.mistake && !trade.learnings && (!trade.tags || trade.tags.length === 0) && !trade.screenshot_url && (
+                                                    <div className="col-span-3 text-center text-gray-500 p-2">No detailed notes logged for this trade.</div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </React.Fragment>
+                    ))}
+                </tbody>
+            </table>
+            {trades.length === 0 && (
+                <div className="p-12 text-center text-gray-500 text-sm">No trades found. Start journaling.</div>
+            )}
+        </div>
+    );
 };
 
 // --- NEW TAGS INPUT COMPONENT ---
 const TagsInput = ({ tags, setTags, label }) => {
-  const [inputValue, setInputValue] = useState('');
+    const [inputValue, setInputValue] = useState('');
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && inputValue.trim() !== '') {
-      e.preventDefault();     // Stop mobile from jumping to next input
-      e.stopPropagation();    // Extra safety
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && inputValue.trim() !== '') {
+            e.preventDefault(); 
+            e.stopPropagation(); 
 
-      // Convert to UPPERCASE + keep only A-Z 0-9 and spaces
-      const newTag = inputValue
-        .trim()
-        .toUpperCase()
-        .replace(/[^A-Z0-9\s]/g, '');
+            // Convert to UPPERCASE + keep only A-Z 0-9 and spaces
+            const newTag = inputValue
+                .trim()
+                .toUpperCase()
+                .replace(/[^A-Z0-9\s]/g, '');
 
-      if (newTag && !tags.includes(newTag)) {
-        setTags([...tags, newTag]);
-      }
+            if (newTag && !tags.includes(newTag)) {
+                setTags([...tags, newTag]);
+                setInputValue('');
+            }
+        }
+    };
 
-      setInputValue('');
-    }
-  };
+    const handleRemoveTag = (tagToRemove) => {
+        setTags(tags.filter(tag => tag !== tagToRemove));
+    };
 
-  const removeTag = (tagToRemove) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-  };
-
-  return (
-    <InputGroup label={label}>
-      <div className="flex flex-wrap gap-2 mb-2 min-h-[36px]">
-        {tags.map((tag, index) => (
-          <span
-            key={index}
-            className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-[#4FF3F9]/20 text-[#4FF3F9] border border-[#4FF3F9]/30"
-          >
-            {tag}
-            <button
-              type="button"
-              onClick={() => removeTag(tag)}
-              className="text-[#4FF3F9] hover:text-white transition-colors p-0.5 rounded-full"
-            >
-              <X size={10} strokeWidth={3} />
-            </button>
-          </span>
-        ))}
-      </div>
-
-      <input
-        type="text"
-        className={inputClass}
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Type tag and press Enter to confirm"
-        enterKeyHint="done"  // improves keyboard behavior on mobile
-        autoCapitalize="characters" // helps auto-uppercase typing
-      />
-    </InputGroup>
-  );
+    return (
+        <InputGroup label={label}>
+            <div className="flex flex-wrap gap-2 p-2 min-h-[44px] bg-[#0C0F14] border border-white/10 rounded-xl transition-colors focus-within:border-[#A479FF]">
+                {tags.map((tag) => (
+                    <span 
+                        key={tag} 
+                        className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-full bg-[#4FF3F9]/20 text-white cursor-pointer hover:bg-[#4FF3F9]/40 transition-colors"
+                        onClick={() => handleRemoveTag(tag)}
+                    >
+                        {tag}
+                        <X size={12} className="text-gray-300" />
+                    </span>
+                ))}
+                <input
+                    type="text"
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-600 p-0 text-sm min-w-[100px]"
+                    placeholder={tags.length === 0 ? "Add tags (e.g., HTF, LONDON, SCALP)" : ""}
+                />
+            </div>
+        </InputGroup>
+    );
 };
-
 // --- END NEW TAGS INPUT COMPONENT ---
 
-const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
-  const initialData = tradeToEdit || {
-    date: new Date().toISOString().split('T')[0],
-    pair: 'EUR/USD',
-    type: 'Long',
-    session: '',
-    entry: '',
-    exit: '',
-    pnl: '',
-    setup: '',
-    mistake: '',
-    notes: '',
-    learnings: '',
-    screenshot_url: '',
-    tags: [], // Added new tags field
-  };
-  
-  const [formData, setFormData] = useState(initialData);
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef(null);
 
-  useEffect(() => {
-    // Ensure tags defaults to an array if tradeToEdit exists but tags doesn't
-    setFormData({ ...initialData, tags: tradeToEdit?.tags || [] });
-  }, [tradeToEdit, isOpen]);
-
-  // Placeholder for screenshot handling (requires implementation)
-  const handleScreenshot = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-
-    setIsUploading(true);
-    const filePath = `${user.id}/${Date.now()}-${file.name}`;
-    const { data, error } = await supabase.storage
-      .from('screenshots')
-      .upload(filePath, file);
-
-    if (error) {
-      console.error('Upload error:', error);
-      setIsUploading(false);
-      return;
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('screenshots')
-      .getPublicUrl(filePath);
-
-    setFormData(prev => ({ ...prev, screenshot_url: publicUrlData.publicUrl }));
-    setIsUploading(false);
-  };
-  // End screenshot handler placeholder
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    // Basic validation and formatting before save
-    const finalData = {
-      ...formData,
-      pnl: parseFloat(formData.pnl || 0),
-      entry: parseFloat(formData.entry || 0),
-      exit: parseFloat(formData.exit || 0),
-      outcome: (parseFloat(formData.pnl) || 0) > 0 ? 'WIN' : (parseFloat(formData.pnl) || 0) < 0 ? 'LOSS' : 'BREAKEVEN'
-    };
-    onSave(finalData);
-  };
-
+// --- REUSABLE MODAL COMPONENT ---
+const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <div className="w-full max-w-4xl max-h-[90vh] flex flex-col rounded-2xl bg-[#131619] shadow-2xl border border-white/10">
-        <div className="p-6 border-b border-white/5 flex justify-between items-center bg-[#0C0F14]/50 rounded-t-2xl">
-          <h3 className="text-xl font-medium text-white">{tradeToEdit ? 'Edit Trade Log' : 'Log New Trade'}</h3>
-          <IconButton icon={X} onClick={onClose} />
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm transition-opacity" onClick={onClose}>
+      <div 
+        className={`bg-[#131619] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col transform transition-all duration-300 border border-white/10 ${THEME.text.primary}`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="p-6 border-b border-white/5 flex justify-between items-center sticky top-0 bg-[#131619] z-10">
+          <h2 className="text-xl font-bold">{title}</h2>
+          <IconButton icon={X} onClick={onClose} variant="ghost" />
         </div>
-
-        <form onSubmit={handleSubmit} className="p-8 overflow-y-auto flex-1 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <InputGroup label="Date">
-              <input type="date" className={inputClass} value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
-            </InputGroup>
-            <InputGroup label="Pair">
-              {/* UPDATED: Currency Pair Segmented Dropdown */}
-              <select className={selectClass} value={formData.pair} onChange={e => setFormData({...formData, pair: e.target.value})}>
-                <option value="" disabled>Select Pair</option>
-                {Object.entries(TRADEABLE_ASSETS).map(([group, pairs]) => (
-                  <optgroup key={group} label={group} className="text-gray-400">
-                    {pairs.map(pair => (
-                      <option key={pair} value={pair} className="text-white bg-[#131619]">{pair}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </InputGroup>
-            <InputGroup label="Direction">
-              <select className={selectClass} value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
-                <option>Long</option>
-                <option>Short</option>
-              </select>
-            </InputGroup>
-            <InputGroup label="Session">
-              <select className={selectClass} value={formData.session} onChange={e => setFormData({...formData, session: e.target.value})}>
-                <option value="">Select...</option>
-                {['Asian', 'London', 'NYC', 'Close'].map(s => <option key={s}>{s}</option>)}
-              </select>
-            </InputGroup>
-          </div>
-
-          <div className="p-5 rounded-xl bg-[#0C0F14]/50 border border-white/5 grid grid-cols-3 gap-6">
-            <InputGroup label="Entry Price">
-              <input type="number" step="0.00001" className={inputClass} value={formData.entry} onChange={e => setFormData({...formData, entry: e.target.value})} placeholder="0.00000" />
-            </InputGroup>
-            <InputGroup label="Exit Price">
-              <input type="number" step="0.00001" className={inputClass} value={formData.exit} onChange={e => setFormData({...formData, exit: e.target.value})} placeholder="0.00000" />
-            </InputGroup>
-            <InputGroup label="Realized PnL ($)">
-              <input 
-                type="number" 
-                className={`${inputClass} font-mono font-medium ${parseFloat(formData.pnl) > 0 ? 'text-[#3CFF64] border-[#3CFF64]/30' : parseFloat(formData.pnl) < 0 ? 'text-[#FF4D4D] border-[#FF4D4D]/30' : ''}`} 
-                value={formData.pnl} 
-                onChange={e => setFormData({...formData, pnl: e.target.value})} 
-                placeholder="0.00" 
-              />
-            </InputGroup>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <InputGroup label="Strategy / Setup">
-              <select className={selectClass} value={formData.setup} onChange={e => setFormData({...formData, setup: e.target.value})}>
-                <option value="">Select Strategy...</option>
-                {['Break & Retest', 'Liquidity Sweep', 'Supply/Demand', 'Trend Continuation', 'Gap Fill'].map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </InputGroup>
-            <InputGroup label="Mistake (If Any)">
-              <select className={`${selectClass} ${formData.mistake ? 'border-[#FF4D4D]/50 text-[#FF4D4D]' : ''}`} value={formData.mistake} onChange={e => setFormData({...formData, mistake: e.target.value})}>
-                <option value="">No Mistake</option>
-                {['FOMO', 'Revenge', 'Over-leveraging', 'Poor Execution', 'Early Exit', 'No Stop Loss'].map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </InputGroup>
-          </div>
-          
-          {/* NEW TAGS INPUT FIELD */}
-          <TagsInput 
-            label="Tags"
-            tags={formData.tags}
-            setTags={(newTags) => setFormData({...formData, tags: newTags})}
-          />
-          {/* END NEW TAGS INPUT FIELD */}
-
-          <InputGroup label="Notes / Observations">
-            <textarea rows="3" className={inputClass} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Market conditions, thoughts, emotions..." />
-          </InputGroup>
-
-          {formData.mistake && (
-            <InputGroup label="Learnings / Corrective Action">
-              <textarea rows="2" className={`${inputClass} border-[#FF4D4D]/20`} value={formData.learnings} onChange={e => setFormData({...formData, learnings: e.target.value})} placeholder="What will you do differently next time?" />
-            </InputGroup>
-          )}
-
-          <div className="border border-dashed border-white/10 rounded-xl p-4 flex items-center gap-4 hover:bg-white/5 transition-colors relative group">
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleScreenshot} className="hidden" />
-            <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center text-gray-400 group-hover:text-[#4FF3F9] group-hover:bg-[#4FF3F9]/10 transition-colors cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-              <Camera size={20} />
-            </div>
-            {formData.screenshot_url ? (
-              <div className="flex items-center gap-2">
-                <img src={formData.screenshot_url} className="h-12 w-12 rounded object-cover border border-white/20" />
-                <span className="text-xs text-[#3CFF64]">Image Attached</span>
-              </div>
-            ) : (
-              <div className="text-sm text-gray-500 cursor-pointer" onClick={() => fileInputRef.current?.click()}>Click to upload chart screenshot</div>
-            )}
-          </div>
-
-        </form>
-
-        <div className="p-6 border-t border-white/5 flex justify-end gap-3 bg-[#0C0F14]">
-          <button onClick={onClose} className="px-6 py-2.5 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors">Cancel</button>
-          <button onClick={handleSubmit} className="px-8 py-2.5 rounded-xl bg-[#3CFF64] text-black text-sm font-bold hover:shadow-[0_0_20px_rgba(60,255,100,0.3)] transition-all">
-            Save Trade
-          </button>
-        </div>
+        
+        {children}
       </div>
     </div>
   );
 };
 
-const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
-  const [newBalance, setNewBalance] = useState(currentBalance);
+// --- TRADE MODAL LOGIC ---
+// Initial state for a new trade
+const initialTradeState = {
+  date: new Date().toISOString().substring(0, 10),
+  pair: 'EUR/USD',
+  type: 'Long',
+  outcome: 'WIN',
+  pnl: 0,
+  setup: '',
+  session: 'London',
+  notes: '',
+  mistake: '',
+  learnings: '',
+  tags: [],
+  screenshot_url: '',
+  balance_change: 0 
+};
+
+const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
+  const [trade, setTrade] = useState(initialTradeState);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setError('');
+      if (tradeToEdit) {
+        // When editing, ensure pnl is treated as a number
+        setTrade({ 
+          ...tradeToEdit, 
+          pnl: Number(tradeToEdit.pnl),
+          // Ensure tags is an array
+          tags: tradeToEdit.tags || [] 
+        });
+      } else {
+        setTrade(initialTradeState);
+      }
+    }
+  }, [isOpen, tradeToEdit]);
+
+  const handleChange = (e) => {
+    const { name, value, type } = e.target;
+    setTrade(prev => ({ ...prev, [name]: type === 'number' ? parseFloat(value) || 0 : value }));
+  };
   
-  useEffect(() => { if(isOpen) setNewBalance(currentBalance); }, [isOpen, currentBalance]);
-  if (!isOpen) return null;
+  const handleTagChange = (newTags) => {
+    setTrade(prev => ({ ...prev, tags: newTags }));
+  };
+
+  const uploadScreenshot = async (file) => {
+    if (!file || !user) return '';
+    setIsUploading(true);
+    
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `${user.id}/${fileName}`;
+    
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('screenshots')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      // Get public URL
+      const { data: publicURLData } = supabase.storage
+        .from('screenshots')
+        .getPublicUrl(filePath);
+        
+      return publicURLData.publicUrl;
+
+    } catch (error) {
+      console.error('Error uploading file:', error.message);
+      setError(`File upload failed: ${error.message.substring(0, 50)}...`);
+      return '';
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (trade.screenshot_url) {
+        await handleRemoveScreenshot(false); 
+      }
+      const url = await uploadScreenshot(file);
+      if (url) {
+        setTrade(prev => ({ ...prev, screenshot_url: url }));
+      }
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (isUploading) return;
+    setError('');
+
+    try {
+      // 1. Prepare data for saving
+      const tradeToSave = {
+        ...trade,
+        date: trade.date,
+        pnl: Number(trade.pnl),
+        tags: trade.tags.filter(t => t.length > 0)
+      };
+
+      await onSave(tradeToSave);
+      onClose(); 
+    } catch (err) {
+      setError(`Failed to save trade: ${err.message}`);
+    }
+  };
+
+  const handleRemoveScreenshot = async (resetState = true) => {
+    if (!trade.screenshot_url) return;
+
+    try {
+      const parts = trade.screenshot_url.split('/');
+      const fileName = parts.pop();
+      const userId = parts.pop();
+      const filePath = `${userId}/${fileName}`;
+
+      const { error: deleteError } = await supabase.storage
+        .from('screenshots')
+        .remove([filePath]);
+
+      if (deleteError) {
+        console.error('Error deleting file:', deleteError.message);
+      }
+
+      if (resetState) {
+        setTrade(prev => ({ ...prev, screenshot_url: '' }));
+      }
+
+    } catch (error) {
+      console.error('Error in remove screenshot process:', error);
+      setError("Could not remove old screenshot. Try manually deleting it.");
+    }
+  };
+
+
+  const assetOptions = useMemo(() => {
+    return Object.entries(TRADEABLE_ASSETS).flatMap(([group, pairs]) => ([
+      <option key={group} disabled className="text-gray-600 bg-[#0C0F14]">{group.toUpperCase()}</option>,
+      ...pairs.map(pair => (
+        <option key={pair} value={pair} className="text-white bg-[#0C0F14]">{pair}</option>
+      ))
+    ]));
+  }, []);
+
+  const sessionOptions = ['Asian', 'London', 'NYC', 'Close', 'Unspecified'];
+  const mistakeOptions = [
+    'None', 'Over-leveraging', 'Revenge Trading', 'No Stop Loss', 'Late Entry/FOMO', 
+    'Early Exit', 'Over-trading', 'Misreading Chart/Bias', 'Breaching Plan', 'Other'
+  ];
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title={tradeToEdit ? "Edit Trade Journal Entry" : "New Trade Journal Entry"} >
+      <div className="px-6">
+        {error && (
+          <div className="p-3 mb-4 text-sm text-[#FF4D4D] bg-[#FF4D4D]/10 rounded-lg border border-[#FF4D4D]/30">
+            {error}
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} className="px-6 pb-6 overflow-y-auto space-y-4">
+
+        {/* DATE & PAIR ROW */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <InputGroup label="Trade Date">
+            <input type="date" name="date" value={trade.date} onChange={handleChange} className={inputClass} required />
+          </InputGroup>
+          <InputGroup label="Currency Pair / Asset">
+            <div className="relative">
+              <select name="pair" value={trade.pair} onChange={handleChange} className={selectClass} required>
+                {assetOptions}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+            </div>
+          </InputGroup>
+        </div>
+
+        {/* TYPE & PNL ROW */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <InputGroup label="Type">
+            <select name="type" value={trade.type} onChange={handleChange} className={selectClass} required>
+              <option value="Long">Long (Buy)</option>
+              <option value="Short">Short (Sell)</option>
+            </select>
+          </InputGroup>
+
+          {/* PNL & OUTCOME ROW */}
+          <InputGroup label="PnL ($)">
+            <input type="number" name="pnl" value={trade.pnl} onChange={handleChange} className={`${inputClass} font-mono`} step="0.01" placeholder="e.g., 50.75 or -25.00" required />
+          </InputGroup>
+          <InputGroup label="Outcome">
+            <select name="outcome" value={trade.outcome} onChange={handleChange} className={selectClass} required>
+              <option value="WIN">WIN</option>
+              <option value="LOSS">LOSS</option>
+              <option value="BREAKEVEN">BREAKEVEN (BE)</option>
+            </select>
+          </InputGroup>
+        </div>
+        
+        {/* SESSION ROW */}
+        <InputGroup label="Trading Session">
+          <select name="session" value={trade.session} onChange={handleChange} className={selectClass} required>
+            {sessionOptions.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+        </InputGroup>
+
+        {/* SETUP & MISTAKE ROW */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <InputGroup label="Setup / Strategy Used">
+            <input type="text" name="setup" value={trade.setup} onChange={handleChange} className={inputClass} placeholder="e.g., SMC, Wyckoff, Scalp" />
+          </InputGroup>
+          <InputGroup label="Primary Mistake (Self-Correction)">
+            <select name="mistake" value={trade.mistake} onChange={handleChange} className={`${selectClass} ${trade.mistake !== 'None' ? 'border-[#FF4D4D]/50 text-[#FF4D4D]' : ''}`}>
+              {mistakeOptions.map(m => (
+                <option key={m} value={m} className={m !== 'None' ? 'text-[#FF4D4D] bg-[#0C0F14]' : 'text-white bg-[#0C0F14]'}>{m}</option>
+              ))}
+            </select>
+          </InputGroup>
+        </div>
+        
+        {/* TAGS */}
+        <TagsInput 
+          label="Tags (Enter to add)"
+          tags={trade.tags}
+          setTags={handleTagChange}
+        />
+
+        {/* NOTES AND LEARNINGS */}
+        <InputGroup label="Trade Notes & Rationale">
+          <textarea name="notes" value={trade.notes} onChange={handleChange} className={`${inputClass} min-h-[100px]`} placeholder="Detailed entry/exit logic, confluence, R:R calculation..." />
+        </InputGroup>
+        {trade.mistake !== 'None' && (
+          <InputGroup label="Corrective Action / Key Learning">
+            <textarea name="learnings" value={trade.learnings} onChange={handleChange} className={`${inputClass} min-h-[80px] border-[#3CFF64]/50`} placeholder="What rule will I implement to prevent this mistake next time?" />
+          </InputGroup>
+        )}
+
+        {/* SCREENSHOT UPLOAD */}
+        <InputGroup label="Chart Screenshot (Optional)">
+          {trade.screenshot_url ? (
+            <div className="p-3 bg-[#131619] border border-white/10 rounded-xl flex justify-between items-center">
+              <a href={trade.screenshot_url} target="_blank" rel="noopener noreferrer" className="text-sm text-[#A479FF] hover:underline truncate max-w-[70%]" >
+                {trade.screenshot_url.substring(0, 50)}...
+              </a>
+              <div className="flex items-center gap-2">
+                <IconButton icon={X} onClick={handleRemoveScreenshot} variant="danger" className="text-sm" />
+              </div>
+            </div>
+          ) : (
+            <>
+              <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
+              <button 
+                type="button" 
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full text-center text-sm font-medium py-2.5 rounded-xl border border-dashed border-white/20 text-gray-400 hover:text-white hover:border-white/50 transition-colors flex items-center gap-2"
+                disabled={isUploading}
+              >
+                {isUploading ? (
+                  <div className="animate-spin h-4 w-4 border-2 border-white border-t-[#A479FF] rounded-full" />
+                ) : (
+                  <Camera size={18} />
+                )}
+                {isUploading ? 'Uploading...' : 'Upload Image'}
+              </button>
+            </>
+          )}
+        </InputGroup>
+
+        <button type="submit" className="w-full mt-6 py-3 text-lg font-medium rounded-xl bg-[#3CFF64] text-black hover:bg-[#2EB84D] transition-colors flex items-center justify-center gap-2" disabled={isUploading}>
+          <Save size={18} /> Save Entry
+        </button>
+      </form>
+    </Modal>
+  );
+};
+
+// --- BALANCE MODAL ---
+const EditBalanceModal = ({ isOpen, onClose, currentBalance, onUpdate }) => {
+  const [amount, setAmount] = useState('');
+  const [type, setType] = useState('deposit'); // 'deposit' or 'withdrawal'
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if(isOpen) {
+      setAmount('');
+      setType('deposit');
+      setError('');
+    }
+  }, [isOpen]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onUpdate(parseFloat(newBalance));
+    setError('');
+    
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setError('Please enter a valid positive amount.');
+      return;
+    }
+
+    const actualChange = type === 'deposit' ? numAmount : -numAmount;
+    
+    if (type === 'withdrawal' && actualChange + currentBalance < 0) {
+      setError('Withdrawal exceeds current equity.');
+      return;
+    }
+
+    onUpdate(actualChange);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-sm bg-[#131619] shadow-2xl" noPadding>
-        <div className="p-6 border-b border-white/5 flex justify-between items-center">
-          <h3 className="text-lg font-medium text-white">Update Account Balance</h3>
-          <IconButton icon={X} onClick={onClose} />
+    <Modal isOpen={isOpen} onClose={onClose} title="Update Account Balance">
+      <p className="text-gray-400 mb-4 px-6">Current Equity: <span className="text-white font-mono font-semibold">{formatCurrency(currentBalance)}</span></p>
+      {error && (
+        <div className="p-3 mb-4 mx-6 text-sm text-[#FF4D4D] bg-[#FF4D4D]/10 rounded-lg border border-[#FF4D4D]/30">
+          {error}
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-[10px] uppercase tracking-widest text-gray-500 font-semibold">Current Equity ($)</label>
-            <input 
-              type="number" step="0.01" 
-              value={newBalance} 
-              onChange={e => setNewBalance(e.target.value)} 
-              className="w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-lg font-mono text-[#4FF3F9] focus:border-[#4FF3F9]/50 outline-none" 
-              autoFocus 
-            />
-          </div>
-          <button type="submit" className="w-full py-2.5 rounded-xl bg-[#4FF3F9] text-black font-bold text-sm hover:bg-[#3BD2D8] transition-all">
-            Update Balance
-          </button>
-        </form>
-      </Card>
-    </div>
+      )}
+      <form onSubmit={handleSubmit} className="px-6 pb-6 space-y-4">
+        <InputGroup label="Transaction Type">
+          <select value={type} onChange={(e) => setType(e.target.value)} className={selectClass} >
+            <option value="deposit">Deposit (Add Funds)</option>
+            <option value="withdrawal">Withdrawal (Remove Funds)</option>
+          </select>
+        </InputGroup>
+        <InputGroup label="Amount ($)">
+          <input 
+            type="number" 
+            value={amount} 
+            onChange={(e) => setAmount(e.target.value)} 
+            className={inputClass} 
+            step="0.01" 
+            placeholder="e.g., 500.00"
+            required
+          />
+        </InputGroup>
+        <button type="submit" className="w-full py-3 text-lg font-medium rounded-xl bg-[#A479FF] text-white hover:bg-[#9361FF] transition-colors mt-6">
+          Confirm Update
+        </button>
+      </form>
+    </Modal>
   );
 };
 
-// --- 🆕 NEW: SIGN OUT CONFIRMATION MODAL ---
+// --- SIGN OUT MODAL ---
 const SignOutConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-      <Card className="w-full max-w-sm bg-[#131619] shadow-2xl" noPadding>
-        <div className="p-6 border-b border-white/5 flex justify-between items-center">
-          <h3 className="text-lg font-medium text-white flex items-center gap-2">
-            <LogOut size={20} className="text-[#FF4D4D]" /> Confirm Sign Out
-          </h3>
-          <IconButton icon={X} onClick={onClose} />
-        </div>
-        <div className="p-6 space-y-4">
-          <p className="text-sm text-gray-300">
-            Are you sure you want to sign out? You will be logged out of your trading journal.
-          </p>
-          <div className="flex justify-end gap-3">
-            <button 
-              onClick={onClose} 
-              className="px-6 py-2.5 rounded-xl text-sm text-gray-400 hover:bg-white/5 transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              onClick={onConfirm} 
-              className="px-6 py-2.5 rounded-xl bg-[#FF4D4D] text-white text-sm font-bold hover:bg-[#E03A3A] transition-all"
-            >
-              Sign Out
-            </button>
-          </div>
-        </div>
-      </Card>
-    </div>
-  );
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title="Confirm Sign Out">
+            <div className="p-6 pt-0">
+                <p className="text-gray-400 mb-6">Are you sure you want to sign out of your MuyeFX account?</p>
+                <div className="flex justify-end gap-3">
+                    <button 
+                        onClick={onClose} 
+                        className="py-2 px-4 rounded-xl text-white border border-white/20 hover:bg-white/10 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={onConfirm} 
+                        className="py-2 px-4 rounded-xl bg-[#FF4D4D] text-white hover:bg-[#E54040] transition-colors"
+                    >
+                        Sign Out
+                    </button>
+                </div>
+            </div>
+        </Modal>
+    );
 };
-// --- END NEW: SIGN OUT CONFIRMATION MODAL ---
 
 
-// --- 📱 MAIN APP COMPONENT ---
+// --- MAIN APP COMPONENT ---
 
 const App = () => {
   const { user, signOut } = useAuth();
-  const [currentView, setCurrentView] = useState(() => localStorage.getItem('muye_view') || 'dashboard');
+  
+  // State for application
   const [trades, setTrades] = useState([]);
-  const [balance, setBalance] = useState(5000);
+  const [loadingTrades, setLoadingTrades] = useState(true);
+  const [currentView, setCurrentView] = useState('dashboard');
   const [modalOpen, setModalOpen] = useState(false);
-  const [balanceModalOpen, setBalanceModalOpen] = useState(false);
-  const [signOutModalOpen, setSignOutModalOpen] = useState(false); // New state for sign out modal
   const [editTrade, setEditTrade] = useState(null);
+  const [balance, setBalance] = useState(10000); // Persistent Starting Balance (default to 10k)
+  const [balanceModalOpen, setBalanceModalOpen] = useState(false);
+  const [signOutModalOpen, setSignOutModalOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // === 🚨 FIX: SUPABASE REDIRECT HANDLER (SOLUTION 1) ===
-  useEffect(() => {
-    // 1. Check for session immediately on component mount (for hash URLs)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-        if (session && window.location.hash.includes('access_token')) {
-            console.log('Found token in URL fragment. Redirecting to clean URL.');
-            // Use replace() to remove the hash from history
-            window.location.replace(window.location.origin);
-        }
-    });
-
-    // 2. Also subscribe to auth changes for robustness
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        (event, session) => {
-            if (event === 'SIGNED_IN' && session) {
-                console.log('SIGNED_IN event received. Checking URL for hash cleanup.');
-                // Re-run the redirect check if a successful sign-in happens
-                if (window.location.hash.includes('access_token')) {
-                    window.location.replace(window.location.origin);
-                }
-            }
-        }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
-  // === 🚨 END FIX ===
-
-  // Load Data
-  useEffect(() => {
+  // Function to save the persistent balance (deposit/withdrawal) to the database
+  const updateBalanceInDB = async (newBalance) => {
     if (!user) return;
-    const fetchData = async () => {
-      const { data } = await supabase.from('trades').select('*').eq('user_id', user.id).order('date', { ascending: false });
-      // Ensure tags field exists and is an array on load
-      if (data) setTrades(data.map(t => ({ ...t, tags: t.tags || [] }))); 
+    const { error } = await supabase
+      .from('user_settings') // <-- FIX: Use correct table name 'user_settings'
+      .update({ starting_balance: newBalance }) // <-- FIX: Use correct column name 'starting_balance'
+      .eq('user_id', user.id); // <-- Use user_id as per old code
       
-      const { data: settings } = await supabase.from('user_settings').select('starting_balance').eq('user_id', user.id).single();
-      if (settings) setBalance(settings.starting_balance);
-    };
-    fetchData();
+    if (error) console.error('Error updating balance:', error);
+  };
+
+  // Function to fetch initial data (Trades and Balance)
+  const fetchInitialData = async () => {
+    if (!user) {
+      setLoadingTrades(false);
+      return;
+    }
+    setLoadingTrades(true);
+
+    // Fetch Trades
+    const { data: tradesData, error: tradesError } = await supabase
+      .from('trades')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false });
+
+    if (tradesError) {
+      console.error('Error fetching trades:', tradesError);
+      setLoadingTrades(false);
+      return;
+    }
+
+    setTrades(tradesData.map(t => ({ 
+      ...t, 
+      pnl: Number(t.pnl) // Ensure PnL is a number
+    })));
+
+    // Fetch User Settings/Balance (Persistent Starting Balance)
+    const { data: settings, error: settingsError } = await supabase
+      .from('user_settings') // <-- FIX: Use correct table name 'user_settings'
+      .select('starting_balance') // <-- FIX: Use correct column name 'starting_balance'
+      .eq('user_id', user.id)
+      .single();
+
+    if (settingsError && settingsError.code !== 'PGRST116') { // PGRST116 is 'no rows found'
+      console.error('Error fetching settings:', settingsError);
+    } else if (settings) {
+      // FIX: Set the persistent 'balance' state from the fetched setting
+      setBalance(settings.starting_balance); 
+    } else {
+      // If no setting, insert a default one with the current default balance (10000)
+      await supabase
+        .from('user_settings')
+        .upsert({ user_id: user.id, starting_balance: balance }, { onConflict: 'user_id' }); 
+    }
+    
+    setLoadingTrades(false);
+  };
+
+  useEffect(() => {
+    fetchInitialData();
   }, [user]);
 
-  useEffect(() => localStorage.setItem('muye_view', currentView), [currentView]);
+  // Handler for adding/editing a trade
+  const handleSave = async (tradeToSave) => {
+    const isEditing = !!tradeToSave.id;
+    const { pnl, ...rest } = tradeToSave;
 
-  // Handlers
-  const handleSave = async (trade) => {
-    const payload = { ...trade, user_id: user.id };
-    if (trade.id && trades.find(t => t.id === trade.id)) {
-      await supabase.from('trades').update(payload).eq('id', trade.id);
-    } else {
-      await supabase.from('trades').insert([payload]);
+    try {
+      if (isEditing) {
+        // Update the trade
+        const { error, data: updatedTrade } = await supabase
+          .from('trades')
+          .update({ 
+            ...rest, 
+            pnl: pnl,
+            user_id: user.id
+          })
+          .eq('id', tradeToSave.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        setTrades(trades.map(t => (t.id === updatedTrade.id ? updatedTrade : t)));
+
+      } else {
+        // Insert new trade
+        const { error, data: newTrade } = await supabase
+          .from('trades')
+          .insert([{ 
+            ...rest, 
+            pnl: pnl,
+            user_id: user.id 
+          }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        setTrades([newTrade, ...trades]);
+      }
+    } catch (error) {
+      console.      console.error('Error saving trade:', error);
+      throw new Error("Failed to save trade entry.");
     }
-    const { data } = await supabase.from('trades').select('*').eq('user_id', user.id).order('date', { ascending: false });
-    // Ensure tags field exists and is an array after save
-    setTrades(data ? data.map(t => ({ ...t, tags: t.tags || [] })) : []);
-    setModalOpen(false);
-    setEditTrade(null);
   };
 
+  // Handler for deleting a trade
   const handleDelete = async (trade) => {
-    if(!confirm("Are you sure you want to delete this trade log? This action cannot be undone.")) return;
-    await supabase.from('trades').delete().eq('id', trade.id);
-    if (trade.screenshot_url) {
-      const path = trade.screenshot_url.split('/public/')[1];
-      if(path) await supabase.storage.from('screenshots').remove([path]);
+    if (!window.confirm(`Are you sure you want to delete the trade for ${trade.pair} on ${trade.date}? This action is irreversible.`)) {
+      return;
     }
-    setTrades(prev => prev.filter(t => t.id !== trade.id));
+    
+    try {
+      const { error } = await supabase
+        .from('trades')
+        .delete()
+        .eq('id', trade.id);
+
+      if (error) throw error;
+
+      // The dynamic calculation of current balance makes explicit updates here unnecessary,
+      // but we remove the trade from the local state to trigger a re-render.
+      
+      // If a trade is deleted, we don't need to change the persistent 'balance' state, 
+      // as 'balance' is the starting balance and totalPnL is recalculated from the remaining trades.
+
+      setTrades(trades.filter(t => t.id !== trade.id));
+    } catch (error) {
+      console.error('Error deleting trade:', error);
+    }
   };
 
-  const handleBalanceUpdate = async (newCurrentBalance) => {
-    const kpis = getKPIs(trades);
-    const newStartingBalance = newCurrentBalance - kpis.totalPnL;
-    setBalance(newStartingBalance);
-    await supabase.from('user_settings').upsert({ user_id: user.id, starting_balance: newStartingBalance }, { onConflict: 'user_id' });
+  const handleEdit = (trade) => {
+    setEditTrade(trade);
+    setModalOpen(true);
   };
+
   
-  // New Sign Out Handler
-  const handleSignOut = () => {
+  const handleBalanceUpdate = async (changeAmount) => {
+    // 'balance' stores the persistent starting balance (initial + deposits/withdrawals)
+    const newBalance = balance + changeAmount; 
+    await updateBalanceInDB(newBalance);
+    setBalance(newBalance); 
+  };
+
+  // Sign Out Handlers
+  const triggerSignOut = () => {
     setSignOutModalOpen(true);
   };
-
-  const confirmSignOut = () => {
-    signOut(); // Execute the actual sign out function
+  
+  const confirmSignOut = async () => {
+    const { error } = await signOut();
+    if (error) console.error("Error signing out:", error);
     setSignOutModalOpen(false);
   };
 
-  if (!user) {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0C0F14] p-4">
-      <div className="w-full max-w-sm">
-        <h1 className="text-3xl font-bold text-white text-center mb-6">Muye<span className="text-gray-500">FX</span> Login</h1>
-        <Auth
-          supabaseClient={supabase}
-          // 🚨 CORRECTION APPLIED: Using window.location.origin + '/' ensures an absolute, clean root path.
-          // This ensures the Supabase OAuth service sends the user back to http://localhost:3000/
-          redirectTo={window.location.origin + '/'} 
-          // NOTE: You should also check if magicLink={true} is needed for email sign-in.
-          providers={['google', 'email']} 
-          appearance={{ theme: { default: { colors: { brand: '#A479FF', brandAccent: '#4FF3F9' } } } }}
-        />
-      </div>
-    </div>
-  );
-}
+  // Filtering/Searching (Mock Implementation)
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState({ outcome: '', pair: '' });
+  
+  const filteredTrades = useMemo(() => {
+    let filtered = trades;
+    
+    if (searchTerm) {
+      const lowerSearchTerm = searchTerm.toLowerCase();
+      filtered = filtered.filter(trade => 
+        trade.pair.toLowerCase().includes(lowerSearchTerm) || 
+        trade.setup?.toLowerCase().includes(lowerSearchTerm) || 
+        trade.notes?.toLowerCase().includes(lowerSearchTerm) 
+      );
+    }
 
-  const kpis = getKPIs(trades);
-  const currentBalance = balance + kpis.totalPnL;
+    if (filters.outcome) {
+      filtered = filtered.filter(trade => trade.outcome === filters.outcome);
+    }
 
+    if (filters.pair) {
+      filtered = filtered.filter(trade => trade.pair === filters.pair);
+    }
+    
+    return filtered;
+  }, [trades, searchTerm, filters]);
+
+  const pairFilterOptions = useMemo(() => {
+    const uniquePairs = [...new Set(trades.map(t => t.pair))].sort();
+    return uniquePairs;
+  }, [trades]);
+
+  const toggleFilter = (name, value) => {
+    setFilters(prev => ({ ...prev, [name]: prev[name] === value ? '' : value }));
+  };
+
+
+  // Dashboard Content
   const renderContent = () => {
-    if (currentView === 'dashboard') {
+    if (loadingTrades) {
       return (
-        <div className="space-y-6 animate-in fade-in duration-500">
-          {/* KPI Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <StatsWidget label="Net PnL" value={formatCurrency(kpis.totalPnL)} icon={Wallet} accentColor={THEME.accent.green} trend={kpis.totalPnL > 0 ? 12 : -5} />
-            <StatsWidget label="Win Rate" value={`${kpis.winRate.toFixed(1)}%`} subValue={`${Math.round(kpis.totalTrades * (kpis.winRate/100))}W / ${kpis.totalTrades - Math.round(kpis.totalTrades * (kpis.winRate/100))}L`} icon={Target} accentColor={THEME.accent.purple} />
-            <StatsWidget label="Profit Factor" value={`${kpis.rr.toFixed(2)}`} icon={TrendingUp} accentColor={THEME.accent.cyan} />
-            <StatsWidget label="Total Trades" value={kpis.totalTrades} icon={BarChart3} accentColor={THEME.accent.yellow} />
-          </div>
-          
-          {/* Charts Row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-auto">
-            <CalendarWidget trades={trades} />
-            <EquityCurveWidget trades={trades} />
-          </div>
+        <div className="flex justify-center items-center h-96">
+          <div className="animate-spin h-10 w-10 border-4 border-white/20 border-t-[#A479FF] rounded-full" />
+          <p className="ml-4 text-gray-400">Loading Journal Data...</p>
         </div>
       );
     }
-    
-    if (currentView === 'journal') return <TradeList trades={trades} onEdit={(t)=>{setEditTrade(t); setModalOpen(true)}} onDelete={handleDelete} />;
-    
-    if (currentView === 'analytics') return <AnalyticsView trades={trades} />;
 
-    if (currentView === 'mistakes') return <MistakesView trades={trades} onEdit={(t)=>{setEditTrade(t); setModalOpen(true)}} />;
-    
-    return <div className="text-center text-gray-500 py-20">Module under renovation.</div>;
+    switch (currentView) {
+      case 'dashboard':
+        // 🎯 FIX 1: Use updated getKPIs to calculate PnL percentage and W/L counts
+        const { 
+          totalPnL, winRate, rr, totalTrades, 
+          pnlPercentage, winsCount, lossesCount 
+        } = getKPIs(trades, balance); // Pass persistent balance
+
+        const currentEquityForDisplay = balance + totalPnL; 
+
+        return (
+          <div className="space-y-6 animate-in fade-in duration-500">
+            <h1 className="text-3xl font-bold text-white mb-6">Dashboard Overview</h1>
+            
+            {/* KPI STATS */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatsWidget 
+                  label="Current Equity" 
+                  value={formatCurrency(currentEquityForDisplay)} 
+                  subValue={totalPnL >= 0 ? `Total Profit: ${formatCurrency(totalPnL)}` : `Total Loss: ${formatCurrency(totalPnL)}`} 
+                  icon={Wallet} 
+                  accentColor={THEME.accent.green} 
+                />
+                <StatsWidget 
+                  label="Total PnL" 
+                  value={formatCurrency(totalPnL)} 
+                  // 🎯 FIX 2: Use calculated pnlPercentage for trend
+                  trend={pnlPercentage.toFixed(1)} 
+                  icon={PieIcon} 
+                  accentColor={totalPnL >= 0 ? THEME.accent.green : THEME.accent.red} 
+                />
+                <StatsWidget 
+                  label="Win Rate" 
+                  value={`${winRate.toFixed(1)}%`} 
+                  // 🎯 FIX 3: Add subValue for W/L count
+                  subValue={`${winsCount}W / ${lossesCount}L`}
+                  icon={Target} 
+                  accentColor={THEME.accent.cyan} 
+                />
+                <StatsWidget label="Average R:R" value={`1:${rr.toFixed(2)}`} icon={TrendingUp} accentColor={THEME.accent.purple} />
+            </div>
+
+            {/* CHARTS */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <EquityCurveWidget trades={trades} startingBalance={balance} />
+                <CalendarWidget trades={trades} />
+            </div>
+
+            {/* Quick Trade List */}
+            <div className='pt-4'>
+                <div className='flex justify-between items-center mb-4'>
+                    <h2 className="text-xl font-bold text-white">Recent Trades</h2>
+                    <button 
+                      onClick={() => setCurrentView('journal')} 
+                      className="text-sm font-medium text-[#A479FF] hover:text-white transition-colors"
+                    >
+                        View All ({totalTrades}) <ChevronRight size={16} className="inline-block ml-1" />
+                    </button>
+                </div>
+                <TradeList trades={trades.slice(0, 5)} onEdit={handleEdit} onDelete={handleDelete} />
+            </div>
+          </div>
+        );
+      case 'journal':
+        const { totalTrades: allTradesCount } = getKPIs(trades, balance); // Recalculate only for count, rest handled by filteredTrades below
+        return (
+          <div className="space-y-6">
+            <h1 className="text-3xl font-bold text-white mb-6">Trade Journal ({allTradesCount})</h1>
+            
+            {/* Search & Filter Bar */}
+            <Card className="p-4 flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+                <div className="flex-1 relative">
+                    <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input 
+                      type="text" 
+                      placeholder="Search by pair, setup, or notes..." 
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className={`${inputClass} pl-10 bg-[#0C0F14]`}
+                    />
+                </div>
+                <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-sm text-gray-400 font-medium hidden sm:block">Filter:</span>
+                    
+                    {/* Outcome Filter */}
+                    <div className="flex space-x-2">
+                        {['WIN', 'LOSS', 'BREAKEVEN'].map(outcome => (
+                            <button
+                                key={outcome}
+                                onClick={() => toggleFilter('outcome', outcome)}
+                                className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-200 ${
+                                    filters.outcome === outcome 
+                                        ? 'bg-[#A479FF] text-white border-[#A479FF] shadow-lg shadow-[#A479FF]/20' 
+                                        : 'bg-transparent text-gray-400 border-white/10 hover:border-white/30'
+                                }`}
+                            >
+                                {outcome}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Pair Filter */}
+                    <div className="relative">
+                        <select 
+                            value={filters.pair} 
+                            onChange={(e) => toggleFilter('pair', e.target.value)}
+                            className={`${selectClass} py-1.5 pr-8 text-xs h-9 bg-[#0C0F14] appearance-none`}
+                        >
+                            <option value="">All Pairs</option>
+                            {pairFilterOptions.map(pair => (
+                                <option key={pair} value={pair}>{pair}</option>
+                            ))}
+                        </select>
+                        <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                    </div>
+                </div>
+            </Card>
+
+            {/* Trade List */}
+            <TradeList trades={filteredTrades} onEdit={handleEdit} onDelete={handleDelete} />
+          </div>
+        );
+      case 'analytics':
+        return <AnalyticsView trades={trades} />;
+      case 'mistakes':
+        return <MistakesView trades={trades} onEdit={handleEdit} />;
+      default:
+        return <div className="text-white">View not found.</div>;
+    }
   };
 
+  // --- Render Authentication Screen ---
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0C0F14] p-4">
+        <div className="w-full max-w-sm">
+          <div className="flex justify-center mb-8">
+            <MuyeFXLogo />
+          </div>
+          <h1 className="text-3xl font-bold text-white text-center mb-6">
+            Muye<span className="text-gray-500">FX</span> Login
+          </h1>
+          <Auth
+            supabaseClient={supabase}
+            appearance={{ 
+              theme: 'dark',
+              variables: {
+                default: {
+                  colors: {
+                    brand: '#A479FF',
+                    brandAccent: '#9361FF',
+                    brandButtonText: '#FFFFFF',
+                    defaultButtonBackground: '#131619',
+                    defaultButtonText: '#FFFFFF',
+                    defaultButtonBorder: 'hsl(0 0% 100% / 0.1)',
+                    inputBackground: '#0C0F14',
+                    inputBorder: 'hsl(0 0% 100% / 0.1)',
+                  },
+                },
+              },
+            }}
+            providers={['google']}
+            view="sign_in"
+            localization={{
+              variables: {
+                sign_in: {
+                  email_label: 'Email Address',
+                  password_label: 'Password',
+                  button_label: 'Sign In',
+                  social_provider_text: 'Continue with {{provider}}',
+                  link_text: 'Already have an account? Sign In',
+                },
+                sign_up: {
+                  email_label: 'Email Address',
+                  password_label: 'Create a Password',
+                  button_label: 'Sign Up',
+                  social_provider_text: 'Continue with {{provider}}',
+                  link_text: "Don't have an account...",
+                },
+              },
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate currentEquity for the EditBalanceModal prop and the UI display
+  const { totalPnL } = getKPIs(trades, balance);
+  const currentEquityForModal = balance + totalPnL; // The actual current equity
+
+
+  // --- Render Main Application ---
   return (
-    <div className={`min-h-screen ${THEME.bg} text-white font-sans selection:bg-[#A479FF]/30`}>
-      <div className="flex h-screen overflow-hidden">
+    // FIX: Wrapped all top-level elements in a React Fragment (<>...</>)
+    <> 
+      <div className={`min-h-screen ${THEME.bg} flex ${THEME.text.primary} relative`}>
         
-        {/* Mobile Nav (Hidden on Desktop) */}
-        <MobileNav currentView={currentView} setCurrentView={setCurrentView} />
+        {/* Sidebar */}
+        <Sidebar 
+          currentView={currentView} 
+          setCurrentView={setCurrentView} 
+          triggerSignOut={triggerSignOut} 
+        />
+        
+        {/* Mobile Sidebar Overlay */}
+        {isSidebarOpen && (
+          <div 
+            className="md:hidden fixed inset-0 bg-black/50 z-40 transition-opacity" 
+            onClick={() => setIsSidebarOpen(false)} 
+          />
+        )}
+        <div className={`fixed top-0 left-0 w-64 h-full bg-[#0C0F14] border-r border-white/5 z-50 transform transition-transform duration-300 md:translate-x-0 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+          <Sidebar currentView={currentView} setCurrentView={setCurrentView} triggerSignOut={triggerSignOut} />
+          <IconButton icon={X} onClick={() => setIsSidebarOpen(false)} className="absolute top-4 right-4 text-white hover:text-[#A479FF] z-50" />
+        </div>
 
-        {/* Desktop Sidebar (Hidden on Mobile) */}
-        <Sidebar currentView={currentView} setCurrentView={setCurrentView} triggerSignOut={handleSignOut} />
-        
-        <main className="flex-1 md:ml-64 flex flex-col overflow-hidden relative mb-16 md:mb-0">
-          {/* Background Ambient Glows */}
-          <div className="absolute top-0 left-0 w-full h-96 bg-[#A479FF]/5 blur-[100px] pointer-events-none" />
+
+        {/* Main Content Area */}
+        <main className="flex-1 md:ml-64 flex flex-col transition-all duration-300">
           
-          {/* Header */}
-          <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-white/5 z-10 bg-[#0C0F14]/80 backdrop-blur-sm">
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight capitalize text-white">{currentView}</h1>
-              <p className="text-xs text-gray-500 mt-0.5">Welcome back, Trader.</p>
+          {/* Header (fixed at top) */}
+          <header className="h-20 flex items-center justify-between px-4 md:px-8 border-b border-white/5 bg-[#0C0F14] sticky top-0 z-30">
+            <div className="flex items-center gap-4">
+              <IconButton icon={Menu} onClick={() => setIsSidebarOpen(true)} className="md:hidden" />
+              <h1 className="text-xl font-semibold capitalize hidden md:block">{currentView}</h1>
             </div>
-            
-            <div className="flex items-center gap-4 md:gap-6">
+            <div className="flex items-center gap-4">
+              <span className="text-sm font-medium text-gray-400 hidden sm:inline">Balance: <span className="text-white font-mono font-bold">{formatCurrency(currentEquityForModal)}</span></span>
               
-              {/* ACCOUNT EQUITY (Responsive) */}
-              <div className="flex items-center gap-2 md:flex-col md:gap-0">
-                <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold md:self-end">
-                    <span className="md:hidden">Equity:</span>
-                    <span className="hidden md:inline">Account Equity</span>
-                </div>
-                <div className="flex items-center gap-2 justify-end">
-                  <div className="text-base md:text-xl font-mono text-[#4FF3F9] font-medium">{formatCurrency(currentBalance)}</div>
-                  <button onClick={() => setBalanceModalOpen(true)} className="p-1 rounded-md hover:bg-white/10 text-gray-500 hover:text-white transition-colors">
-                    <Pencil size={12}/>
-                  </button>
-                </div>
-              </div>
-              
-              {/* Sign Out Button (Mobile Only) */}
-              <div className='md:hidden'>
-                <IconButton icon={LogOut} onClick={handleSignOut} variant="danger" className="p-2"/>
-              </div>
-
-              {/* NEW TRADE BUTTON */}
+              <button 
+                onClick={() => setBalanceModalOpen(true)}
+                className="py-2 px-4 text-sm font-medium rounded-xl bg-[#A479FF]/10 text-[#A479FF] hover:bg-[#A479FF]/20 transition-colors flex items-center gap-2"
+              >
+                <Wallet size={18} /> <span className="hidden md:inline">Edit Balance</span>
+              </button>
               <button 
                 onClick={() => { setEditTrade(null); setModalOpen(true); }}
-                className="bg-white text-black hover:bg-gray-200 px-3 md:px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-[0_0_15px_rgba(255,255,255,0.1)]"
+                className="py-2 px-4 text-sm font-medium rounded-xl bg-[#3CFF64] text-black hover:bg-[#2EB84D] transition-colors flex items-center gap-2"
               >
                 <Plus size={18} /> <span className="hidden md:inline">New Trade</span>
               </button>
@@ -1266,11 +1686,11 @@ const App = () => {
       <EditBalanceModal 
         isOpen={balanceModalOpen}
         onClose={() => setBalanceModalOpen(false)}
-        currentBalance={currentBalance}
+        currentBalance={currentEquityForModal} 
         onUpdate={handleBalanceUpdate}
       />
       
-      {/* NEW: Sign Out Modal */}
+      {/* Sign Out Modal */}
       <SignOutConfirmationModal
         isOpen={signOutModalOpen}
         onClose={() => setSignOutModalOpen(false)}
@@ -1281,11 +1701,11 @@ const App = () => {
       <style>{`
         .recharts-tooltip-cursor { fill: rgba(255,255,255,0.05) !important; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { bg: transparent; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        ::-webkit-scrollbar-track { background: #0C0F14; }
+        ::-webkit-scrollbar-thumb { background: #1A1D21; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #2A2D31; }
       `}</style>
-    </div>
+    </>
   );
 };
 
