@@ -23,7 +23,7 @@ const THEME = {
   border: "border-white/5",
   glass: "backdrop-blur-xl bg-[#131619]/80 border-white/10",
   accent: {
-    green: "#3CFF64", 
+    green: "#3CFF64", // Neon Green
     red: "#FF4D4D",   
     purple: "#A479FF", 
     cyan: "#4FF3F9",   
@@ -88,6 +88,18 @@ const IconButton = ({ icon: Icon, onClick, variant = "ghost", className = "" }) 
     </button>
   );
 };
+
+
+// --- CUSTOM LOADING COMPONENT ---
+
+const JournalLoading = () => (
+    <div className="flex justify-center items-center h-96 flex-col">
+        {/* Use BrainCircuit icon with the green accent color and the custom slow spin animation */}
+        <BrainCircuit size={48} className="text-[#3CFF64] animate-spin-slow" /> 
+        <p className="mt-4 text-gray-400">Loading Journal Data...</p>
+    </div>
+);
+
 
 // --- 📊 ANALYTICS & UTILITIES ---
 
@@ -231,7 +243,7 @@ const MuyeFXLogo = () => (
     <div className="flex items-center justify-start gap-3">
         <img src={MuyeFxLogoImage} alt="MuyeFX Logo" className="h-8 sm:h-10 w-auto" />
         <span className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: '#EBEBEB', fontFamily: 'Arial, sans-serif' }}>
-          MUYE<span style={{ color: '#3CFF64' }}>FX</span>
+          MUYE<span style={{ color: THEME.accent.green }}>FX</span>
         </span>
     </div>
 );
@@ -1182,12 +1194,7 @@ const App = () => {
 
   const renderContent = () => {
     if (loadingTrades) {
-      return (
-        <div className="flex justify-center items-center h-96">
-          <div className="animate-spin h-10 w-10 border-4 border-white/20 border-t-[#A479FF] rounded-full" />
-          <p className="ml-4 text-gray-400">Loading Journal Data...</p>
-        </div>
-      );
+      return <JournalLoading />;
     }
 
     switch (currentView) {
@@ -1328,6 +1335,15 @@ const App = () => {
         ::-webkit-scrollbar-track { background: #0C0F14; }
         ::-webkit-scrollbar-thumb { background: #1A1D21; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #2A2D31; }
+        
+        /* Custom keyframes for slow, continuous spin */
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 3s linear infinite;
+        }
       `}</style>
     </>
   );
