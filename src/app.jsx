@@ -979,7 +979,15 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
           <div className="p-3 mb-4 text-sm text-[#FF4D4D] bg-[#FF4D4D]/10 rounded-lg border border-[#FF4D4D]/30">{error}</div>
         )}
       </div>
-      <form onSubmit={handleSubmit} className="px-6 pb-6 overflow-y-auto space-y-4">
+      <form onSubmit={handleSubmit}
+  onKeyDown={(e) => {
+    // Prevent mobile browsers from jumping to the next input on Enter
+    // TagsInput handles Enter itself, so this is safe
+    if (e.key === "Enter") {
+      e.preventDefault();
+    }
+  }}
+  className="px-6 pb-6 overflow-y-auto space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <InputGroup label="Trade Date">
             <input type="date" name="date" value={trade.date} onChange={handleChange} className={inputClass} required />
