@@ -796,7 +796,7 @@ const TagsInput = ({ tags, setTags, label }) => {
                         {tag} <X size={12} className="text-gray-300" />
                     </span>
                 ))}
-                <input type="text" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-600 p-0 text-sm min-w-[100px]" placeholder={tags.length === 0 ? "Add tags (e.g., HTF, LONDON, SCALP)" : ""} />
+                <input type="text" inputMode="text" formNoValidate enterKeyHint="done" value={inputValue} onChange={(e) => setInputValue(e.target.value)} onKeyDown={handleKeyDown} onKeyUp={(e) => e.key === "Enter" && e.preventDefault()} className="flex-1 bg-transparent border-none text-white outline-none placeholder-gray-600 p-0 text-sm min-w-[100px]" placeholder={tags.length === 0 ? "Add tags (e.g., HTF, LONDON, SCALP)" : ""} />
             </div>
         </InputGroup>
     );
