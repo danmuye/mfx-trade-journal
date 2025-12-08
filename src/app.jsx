@@ -4,7 +4,7 @@ import {
   Filter, TrendingUp, Target, BrainCircuit, X, Save, Camera, 
   MoreHorizontal, Pencil, Trash2, LogOut, ChevronLeft, ChevronRight, 
   CalendarDays, HeartHandshake, Wallet, ArrowUpRight, ArrowDownRight,
-  PieChart as PieIcon, Menu, ChevronUp, ChevronDown 
+  PieChart as PieIcon, Menu, ChevronUp, ChevronDown, CheckCircle2 
 } from 'lucide-react';
 import { 
   AreaChart, Area, BarChart, Bar, CartesianGrid, XAxis, YAxis, 
@@ -13,9 +13,9 @@ import {
 // NOTE: Assuming this imports Auth and the client instance
 import { supabase, useAuth, Auth } from './supabase'; 
 
-import MuyeFxLogoImage from './Logo Muye FX CMYK.jpg'; 
+import MuyeFxLogoImage from './logo-muye-fx.svg';
 
-// --- 🎨 DESIGN SYSTEM & UTILS ---
+// --- 耳 DESIGN SYSTEM & UTILS ---
 const THEME = {
   bg: "bg-[#0C0F14]", 
   card: "bg-[#131619]", 
@@ -50,7 +50,7 @@ const inputClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 p
 const selectClass = "w-full bg-[#0C0F14] border border-white/10 rounded-xl px-4 py-2.5 text-white focus:border-[#A479FF] outline-none transition-colors appearance-none pr-8";
 
 
-// --- 🧩 UI PRIMITIVES ---
+// --- ｧｩ UI PRIMITIVES ---
 
 const Card = ({ children, className = "", noPadding = false, glow = false }) => (
   <div className={`relative group rounded-2xl border ${THEME.border} ${THEME.card} transition-all duration-300 ${glow ? 'hover:shadow-[0_0_20px_rgba(164,121,255,0.1)] hover:border-white/10' : ''} ${className}`}>
@@ -101,7 +101,7 @@ const JournalLoading = () => (
 );
 
 
-// --- 📊 ANALYTICS & UTILITIES ---
+// --- 投 ANALYTICS & UTILITIES ---
 
 const TRADEABLE_ASSETS = {
   'Forex Majors': ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF', 'NZD/USD'],
@@ -199,7 +199,7 @@ const getMistakeAnalytics = (trades) => {
     return { totalMistakePnL, frequencyData, mistakeTrades };
 };
 
-// --- 🧱 REUSABLE CHART COMPONENT ---
+// --- ｧｱ REUSABLE CHART COMPONENT ---
 
 const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName = 'name', height = 300 }) => {
     if (!data || data.length === 0) return (
@@ -237,17 +237,23 @@ const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName
     );
 };
 
-// --- 🧩 DASHBOARD WIDGETS ---
+// --- ｧｩ DASHBOARD WIDGETS ---
 
 const MuyeFXLogo = () => (
-    <div className="flex items-center justify-start gap-3">
-        <img src={MuyeFxLogoImage} alt="MuyeFX Logo" className="h-8 sm:h-10 w-auto" />
-        <span className="text-lg sm:text-xl font-extrabold tracking-tight" style={{ color: '#EBEBEB', fontFamily: 'Arial, sans-serif' }}>
-          MUYE<span style={{ color: THEME.accent.green }}>FX</span>
-        </span>
-    </div>
+  <div className="flex items-center justify-start gap-3 px-2">
+    <img
+      src={MuyeFxLogoImage}
+      alt="MuyeFX Logo"
+      className="h-10 w-auto object-contain"
+    />
+    <span
+      className="text-xl font-extrabold tracking-tight"
+      style={{ color: '#EBEBEB', fontFamily: 'Arial, sans-serif' }}
+    >
+      MUYE<span style={{ color: THEME.accent.green }}>FX</span>
+    </span>
+  </div>
 );
-
 
 const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { 
   const items = [
@@ -435,7 +441,7 @@ const EquityCurveWidget = ({ trades, startingBalance }) => {
   );
 };
 
-// --- 📑 VIEWS: ANALYTICS & MISTAKES ---
+// --- 淘 VIEWS: ANALYTICS & MISTAKES ---
 
 const AnalyticsView = ({ trades }) => {
     const { mostProfitable, worstPerforming, chartData: pairChartData } = getPairAnalytics(trades);
@@ -560,7 +566,7 @@ const MistakesView = ({ trades, onEdit }) => {
     );
 };
 
-// --- 📝 TRADE LIST & CARD COMPONENTS ---
+// --- 統 TRADE LIST & CARD COMPONENTS ---
 
 const MobileTradeCard = ({ trade, onExpand, isExpanded, onEdit, onDelete }) => (
   <div className="bg-[#131619] border border-white/5 rounded-xl p-4 mb-3">
@@ -1161,6 +1167,111 @@ const SignOutConfirmationModal = ({ isOpen, onClose, onConfirm }) => {
     );
 };
 
+// --- NEW AUTH PAGE COMPONENT ---
+const AuthPage = ({ authView, setAuthView }) => {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0C0F14] relative overflow-hidden p-4">
+      {/* Background Decor: Technical Grid & Glow */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+      <div className="absolute inset-0 bg-radial-gradient from-[#A479FF]/10 via-transparent to-transparent opacity-40 pointer-events-none" />
+      
+      {/* Auth Container */}
+      <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in-95 duration-500">
+        
+        {/* Brand Header */}
+        <div className="flex flex-col items-center mb-8">
+           <img src={MuyeFxLogoImage} alt="MuyeFX" className="h-16 w-auto mb-4 drop-shadow-[0_0_15px_rgba(60,255,100,0.3)]" />
+           <h1 className="text-2xl font-bold tracking-tight text-white">
+             MUYE<span className="text-[#3CFF64]">FX</span>
+           </h1>
+           <p className="text-gray-400 text-sm mt-2">Professional Trade Journaling</p>
+        </div>
+
+        {/* Auth Card */}
+        <div className="bg-[#131619]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+          
+          {/* Custom Toggle Switch */}
+          <div className="p-2 bg-[#0C0F14]/50 border-b border-white/5">
+            <div className="relative flex w-full bg-[#0C0F14] rounded-xl p-1 border border-white/5">
+              <div 
+                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-[#1A1D21] border border-white/10 rounded-lg shadow-sm transition-all duration-300 ease-out transform ${authView === 'sign_in' ? 'left-1' : 'left-[calc(50%+2px)]'}`} 
+              />
+              <button 
+                onClick={() => setAuthView('sign_in')}
+                className={`relative flex-1 py-2 text-sm font-medium transition-colors duration-200 z-10 ${authView === 'sign_in' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                Sign In
+              </button>
+              <button 
+                onClick={() => setAuthView('sign_up')}
+                className={`relative flex-1 py-2 text-sm font-medium transition-colors duration-200 z-10 ${authView === 'sign_up' ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                Sign Up
+              </button>
+            </div>
+          </div>
+
+          <div className="p-8">
+             <div className="mb-6 text-center">
+                <h2 className="text-xl font-semibold text-white mb-1">
+                  {authView === 'sign_in' ? 'Welcome Back' : 'Create Account'}
+                </h2>
+                <p className="text-xs text-gray-500">
+                  {authView === 'sign_in' 
+                    ? 'Enter your credentials to access your journal.' 
+                    : 'Start tracking your edge today.'}
+                </p>
+             </div>
+
+             <Auth
+              supabaseClient={supabase}
+              view={authView}
+              showLinks={false} // Hide default bottom links so we can control them
+              appearance={{
+                theme: 'dark',
+                variables: {
+                  default: {
+                    colors: {
+                      brand: THEME.accent.purple,
+                      brandAccent: '#9361FF',
+                      brandButtonText: '#FFFFFF',
+                      defaultButtonBackground: '#1A1D21',
+                      defaultButtonText: '#FFFFFF',
+                      defaultButtonBorder: 'rgba(255,255,255,0.1)',
+                      inputBackground: '#0C0F14',
+                      inputBorder: 'rgba(255,255,255,0.1)',
+                      inputBorderHover: THEME.accent.purple,
+                      inputBorderFocus: THEME.accent.purple,
+                      inputLabelText: '#9CA3AF',
+                    },
+                    borderWidths: { buttonBorderWidth: '1px', inputBorderWidth: '1px' },
+                    radii: { borderRadiusButton: '12px', inputBorderRadius: '12px' },
+                    space: { inputPadding: '12px', buttonPadding: '12px' },
+                    fonts: { bodyFontFamily: `ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`, buttonFontFamily: `ui-sans-serif, system-ui, sans-serif` }
+                  },
+                },
+                style: {
+                   button: { fontSize: '14px', fontWeight: '500' },
+                   input: { fontSize: '14px', color: 'white' },
+                   label: { fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '600', marginBottom: '4px' },
+                   anchor: { color: THEME.accent.purple, fontSize: '12px' },
+                }
+              }}
+              providers={['google']}
+            />
+          </div>
+        </div>
+        
+        <div className="mt-8 text-center">
+           <p className="text-[10px] text-gray-600 uppercase tracking-widest">
+             &copy; {new Date().getFullYear()} MuyeFX Journal
+           </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 // --- MAIN APP COMPONENT ---
 
@@ -1176,6 +1287,7 @@ const App = () => {
   const [balanceModalOpen, setBalanceModalOpen] = useState(false);
   const [signOutModalOpen, setSignOutModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [authView, setAuthView] = useState('sign_in'); // State for Auth Page Toggle
 
   const updateBalanceInDB = async (newBalance) => {
     if (!user) return;
@@ -1384,15 +1496,7 @@ const App = () => {
   };
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0C0F14] p-4">
-        <div className="w-full max-w-sm">
-          <div className="flex justify-center mb-8"><MuyeFXLogo /></div>
-          <h1 className="text-3xl font-bold text-white text-center mb-6">Muye<span className="text-gray-500">FX</span> Login</h1>
-          <Auth supabaseClient={supabase} appearance={{ theme: 'dark', variables: { default: { colors: { brand: '#A479FF', brandAccent: '#9361FF', brandButtonText: '#FFFFFF', defaultButtonBackground: '#131619', defaultButtonText: '#FFFFFF', defaultButtonBorder: 'hsl(0 0% 100% / 0.1)', inputBackground: '#0C0F14', inputBorder: 'hsl(0 0% 100% / 0.1)', }, }, }, }} providers={['google']} view="sign_in" />
-        </div>
-      </div>
-    );
+    return <AuthPage authView={authView} setAuthView={setAuthView} />;
   }
 
   const { totalPnL } = getKPIs(trades, balance);
