@@ -5,8 +5,8 @@ import { ThemeSupa } from '@supabase/auth-ui-shared';
 
 // ⚠️ FIX: Use import.meta.env to correctly access VITE environment variables in Vite projects.
 // These variables must be defined in your .env file in the project root.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "";
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || "https://fyjhwdweswkupxksqsde.supabase.co";
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5amh3ZHdlc3drdXB4a3Nxc2RlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4NTMxNjYsImV4cCI6MjA3OTQyOTE2Nn0.O-dsEzLoMdoGuApWcy7U4G2Mg_dh4tqwgHYxeo902fE";
 
 // Check for missing keys and throw an error early
 if (!supabaseUrl || !supabaseKey) {

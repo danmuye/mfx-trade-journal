@@ -13,6 +13,8 @@ import {
 // NOTE: Assuming this imports Auth and the client instance
 import { supabase, useAuth, Auth } from './supabase'; 
 
+import AuthScreen from './AuthScreen';
+
 import MuyeFxLogoImage from './logo-muye-fx.svg';
 
 // --- 耳 DESIGN SYSTEM & UTILS ---
@@ -1495,10 +1497,12 @@ const App = () => {
     }
   };
 
-  if (!user) {
-    return <AuthPage authView={authView} setAuthView={setAuthView} />;
-  }
-
+ // NEW CODE USING CUSTOM AuthScreen
+if (!user) {
+  // The AuthScreen component handles the sign-in/sign-up toggle internally,
+  // so you no longer need to pass authView or setAuthView.
+  return <AuthScreen />;
+}
   const { totalPnL } = getKPIs(trades, balance);
   const currentEquityForModal = balance + totalPnL; 
 
