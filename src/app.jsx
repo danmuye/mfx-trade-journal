@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BookOpen, AlertTriangle, BarChart3, Plus, Search, 
   Filter, TrendingUp, Target, BrainCircuit, X, Save, Camera, 
   MoreHorizontal, Pencil, Trash2, LogOut, ChevronLeft, ChevronRight, 
-  CalendarDays, HeartHandshake, Wallet, ArrowUpRight, ArrowDownRight,
+  CalendarDays, HeartHandshake, Wallet, ArrowUpRight, Gauge, ArrowDownRight,
   PieChart as PieIcon, Menu, ChevronUp, ChevronDown, CheckCircle2 
 } from 'lucide-react';
 import { 
@@ -242,21 +242,16 @@ const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName
 // --- ｧｩ DASHBOARD WIDGETS ---
 
 const MuyeFXLogo = () => (
-  <div className="flex items-center justify-start gap-3 px-2">
-    <img
-      src={MuyeFxLogoImage}
-      alt="MuyeFX Logo"
-      className="h-10 w-auto object-contain"
-    />
+  <div className="flex items-center justify-start gap-3 px-2 h-10">
     <span
       className="text-xl font-extrabold tracking-tight"
-      style={{ color: '#EBEBEB', fontFamily: 'Arial, sans-serif' }}
+      // Apply the requested font and color for the main text
+      style={{ color: '#EBEBEB', fontFamily: 'Bank Gothic, Arial, sans-serif' }}
     >
-      MUYE<span style={{ color: THEME.accent.green }}>FX</span>
+      MUYE<span style={{ color: THEME.accent.green }}> FX</span>
     </span>
   </div>
 );
-
 const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { 
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
@@ -1431,7 +1426,6 @@ const App = () => {
 
         return (
           <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4 sm:mb-6">Dashboard Overview</h1>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 <StatsWidget label="Current Equity" value={formatCurrency(currentEquityForDisplay)} subValue={totalPnL >= 0 ? `Profit: ${formatCurrency(totalPnL)}` : `Loss: ${formatCurrency(totalPnL)}`} icon={Wallet} accentColor={THEME.accent.green} />
