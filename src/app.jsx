@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BookOpen, AlertTriangle, BarChart3, Plus, Search, 
   Filter, TrendingUp, Target, BrainCircuit, X, Save, Camera, 
   MoreHorizontal, Pencil, Trash2, LogOut, ChevronLeft, ChevronRight, 
-  CalendarDays, HeartHandshake, Wallet, ArrowUpRight, Gauge, ArrowDownRight,
+  CalendarDays, HeartHandshake, Wallet, ArrowUpRight, ArrowDownRight,
   PieChart as PieIcon, Menu, ChevronUp, ChevronDown, CheckCircle2 
 } from 'lucide-react';
 import { 
@@ -106,14 +106,97 @@ const JournalLoading = () => (
 // --- 投 ANALYTICS & UTILITIES ---
 
 const TRADEABLE_ASSETS = {
-  'Forex Majors': ['EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD', 'USD/CAD', 'USD/CHF', 'NZD/USD'],
-  'Forex Minors': ['EUR/GBP', 'EUR/AUD', 'EUR/CAD', 'GBP/JPY', 'AUD/JPY', 'CAD/JPY', 'NZD/JPY'],
-  'Metals': ['XAU/USD (Gold)', 'XAG/USD (Silver)'],
-  'Indices': ['US30', 'NAS100', 'SPX500'],
-  'Cryptos': ['BTC/USD', 'ETH/USD'],
-  'Other': ['Custom Pair']
+  'Forex Majors': [
+    'EUR/USD', 'GBP/USD', 'USD/JPY', 'AUD/USD',
+    'USD/CAD', 'USD/CHF', 'NZD/USD'
+  ],
+  'Forex Minors': [
+    'EUR/GBP', 'EUR/JPY', 'EUR/AUD', 'EUR/CAD', 'EUR/NZD', 'EUR/CHF',
+    'EUR/SEK', 'EUR/NOK', 'EUR/DKK', 'EUR/TRY', 'EUR/ZAR',
+    'GBP/JPY', 'GBP/AUD', 'GBP/CAD', 'GBP/NZD', 'GBP/CHF',
+    'GBP/SEK', 'GBP/NOK', 'GBP/DKK', 'GBP/TRY',
+    'AUD/JPY', 'CAD/JPY', 'CHF/JPY', 'NZD/JPY', 'SEK/JPY', 'NOK/JPY',
+    'AUD/CAD', 'AUD/NZD', 'AUD/CHF', 'CAD/CHF', 'NZD/CAD'
+  ],
+  'Metals': ['XAU/USD (Gold)', 'XAG/USD (Silver)', 'XPT/USD (Platinum)', 'XPD/USD (Palladium)', 'COPPER'],
+  'Indices': ['US30', 'NAS100', 'SPX500', 'GER40', 'UK100', 'FRA40', 'JPN225', 'AUS200', 'VIX', 'HK50'],
+  'Cryptos': ['BTC/USD', 'ETH/USD', 'LTC/USD', 'XRP/USD', 'ADA/USD', 'DOT/USD', 'BNB/USD', 'SOL/USD'],
+  'Other': {
+    type: 'custom_input',
+    placeholder: 'Enter custom symbol (e.g., AAPL, TSLA, BRENT)'
+  }
 };
 
+function AssetSelector() {
+  const [selectedAsset, setSelectedAsset] = useState('');
+  const [customSymbol, setCustomSymbol] = useState('');
+
+  // Build options except for 'Other'
+  const assetOptions = useMemo(() => {
+    return Object.entries(TRADEABLE_ASSETS).flatMap(([group, pairs]) => {
+      if (group === 'Other') return []; // skip 'Other'
+      return [
+        <option key={group} disabled className="text-gray-600 bg-[#0C0F14]">
+          {group.toUpperCase()}
+        </option>,
+        ...pairs.map(pair => (
+          <option key={pair} value={pair} className="text-white bg-[#0C0F14]">
+            {pair}
+          </option>
+        ))
+      ];
+    });
+  }, []);
+
+  // Handle change for select
+  const handleSelectChange = e => {
+    setSelectedAsset(e.target.value);
+    if (e.target.value !== 'Other') {
+      setCustomSymbol(''); // reset custom input if not Other
+    }
+  };
+
+  return (
+    <div className="p-4 bg-[#0C0F14] rounded-md max-w-md mx-auto text-white">
+      <label htmlFor="asset-select" className="block mb-2 font-semibold">
+        Select Tradeable Asset
+      </label>
+      <select
+        id="asset-select"
+        value={selectedAsset}
+        onChange={handleSelectChange}
+        className="w-full p-2 mb-4 bg-[#131619] border border-gray-700 rounded text-white"
+      >
+        {assetOptions}
+        <option value="Other" className="text-white bg-[#0C0F14]">
+          Other (custom symbol)
+        </option>
+      </select>
+
+      {selectedAsset === 'Other' && (
+        <>
+          <label htmlFor="custom-symbol" className="block mb-2 font-semibold">
+            Enter Custom Symbol
+          </label>
+          <input
+            id="custom-symbol"
+            type="text"
+            placeholder={TRADEABLE_ASSETS.Other.placeholder}
+            value={customSymbol}
+            onChange={e => setCustomSymbol(e.target.value)}
+            className="w-full p-2 bg-[#131619] border border-gray-700 rounded text-white"
+          />
+        </>
+      )}
+
+      {/* For demonstration */}
+      <div className="mt-4">
+        <strong>Selected Asset:</strong>{' '}
+        {selectedAsset === 'Other' ? customSymbol || '(none entered)' : selectedAsset || '(none selected)'}
+      </div>
+    </div>
+  );
+}
 const getKPIs = (trades, startingBalance) => { 
   const totalPnL = trades.reduce((acc, t) => acc + t.pnl, 0);
   const totalTrades = trades.length;
@@ -242,16 +325,21 @@ const ModernBarChart = ({ data, title, primaryColor = THEME.accent.cyan, keyName
 // --- ｧｩ DASHBOARD WIDGETS ---
 
 const MuyeFXLogo = () => (
-  <div className="flex items-center justify-start gap-3 px-2 h-10">
+  <div className="flex items-center justify-start gap-3 px-2">
+    <img
+      src={MuyeFxLogoImage}
+      alt="MuyeFX Logo"
+      className="h-10 w-auto object-contain"
+    />
     <span
       className="text-xl font-extrabold tracking-tight"
-      // Apply the requested font and color for the main text
-      style={{ color: '#EBEBEB', fontFamily: 'Bank Gothic, Arial, sans-serif' }}
+      style={{ color: '#EBEBEB', fontFamily: 'Arial, sans-serif' }}
     >
-      MUYE<span style={{ color: THEME.accent.green }}> FX</span>
+      MUYE<span style={{ color: THEME.accent.green }}>FX</span>
     </span>
   </div>
 );
+
 const Sidebar = ({ currentView, setCurrentView, triggerSignOut }) => { 
   const items = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Overview' },
@@ -961,13 +1049,20 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
   };
 
   const assetOptions = useMemo(() => {
-    return Object.entries(TRADEABLE_ASSETS).flatMap(([group, pairs]) => ([
+  return Object.entries(TRADEABLE_ASSETS).flatMap(([group, pairs]) => {
+    if (group === 'Other') {
+      // Don't render options for 'Other' here
+      return [];
+    }
+    return [
       <option key={group} disabled className="text-gray-600 bg-[#0C0F14]">{group.toUpperCase()}</option>,
       ...pairs.map(pair => (
         <option key={pair} value={pair} className="text-white bg-[#0C0F14]">{pair}</option>
       ))
-    ]));
-  }, []);
+    ];
+  });
+}, []);
+
 
   const sessionOptions = ['Asian', 'London', 'NYC', 'Close', 'Unspecified'];
   const mistakeOptions = [
@@ -1426,6 +1521,7 @@ const App = () => {
 
         return (
           <div className="space-y-4 sm:space-y-6 animate-in fade-in duration-500">
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mb-4 sm:mb-6">Dashboard Overview</h1>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 <StatsWidget label="Current Equity" value={formatCurrency(currentEquityForDisplay)} subValue={totalPnL >= 0 ? `Profit: ${formatCurrency(totalPnL)}` : `Loss: ${formatCurrency(totalPnL)}`} icon={Wallet} accentColor={THEME.accent.green} />
