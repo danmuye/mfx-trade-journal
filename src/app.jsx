@@ -15,6 +15,8 @@ import { supabase, useAuth, Auth } from './supabase';
 
 import AuthScreen from './AuthScreen';
 
+import UpdatePasswordScreen from './UpdatePasswordScreen';
+
 import MuyeFxLogoImage from './logo-muye-fx.svg';
 
 // --- 耳 DESIGN SYSTEM & UTILS ---
@@ -1587,16 +1589,50 @@ const App = () => {
     }
   };
 
+  // App.jsx (Inside the App component, with other useState calls)
+const [isResettingPassword, setIsResettingPassword] = useState(false); // <-- NEW STATE
+
+// ... (Your updateBalanceInDB function)
+
+// ... (Your fetchInitialData function)
+
+useEffect(() => {
+  // Check URL hash for recovery token BEFORE fetching data
+  const hash = window.location.hash;
+  if (hash && hash.includes('type=recovery')) {
+    setIsResettingPassword(true);
+    // If we're resetting, we don't need to proceed with normal data fetch yet.
+    // The user will be authenticated implicitly by Supabase on the UpdatePasswordScreen.
+    return; 
+  }
+
+  fetchInitialData();
+}, [user]); // Keep the dependency on 'user'
+
  // NEW CODE USING CUSTOM AuthScreen
+// Priority 1: If user clicked a reset link (handles the 'type=recovery' URL hash)
+if (isResettingPassword) {
+  return (
+    <UpdatePasswordScreen 
+      onComplete={() => {
+        setIsResettingPassword(false);
+        // Clear the tokens from the URL hash after successful reset
+        window.location.hash = ''; 
+      }} 
+    />
+  );
+}
+
+// Priority 2: User is NOT logged in. Show the main Auth screen.
 if (!user) {
-  // The AuthScreen component handles the sign-in/sign-up toggle internally,
-  // so you no longer need to pass authView or setAuthView.
+  // The AuthScreen component already includes the logic for sign-in/sign-up/forgot password.
   return <AuthScreen />;
 }
-  const { totalPnL } = getKPIs(trades, balance);
-  const currentEquityForModal = balance + totalPnL; 
 
-  return (
+// Priority 3: User IS logged in. Proceed to main dashboard rendering.
+const { totalPnL } = getKPIs(trades, balance);
+const currentEquityForModal = balance + totalPnL;
+return (
     <> 
       <div className={`min-h-screen ${THEME.bg} flex ${THEME.text.primary} relative overflow-x-hidden`}>
         <div className="hidden md:flex fixed w-64 h-full z-20">

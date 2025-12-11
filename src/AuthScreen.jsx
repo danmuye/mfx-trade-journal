@@ -8,7 +8,8 @@ import {
   Lock, 
   Mail,
   Home,
-  LogOut
+  LogOut,
+  ArrowLeft // Added for back navigation
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import LogoSVG from './logo-muye-fx.svg'; // Adjust path as needed
@@ -16,37 +17,37 @@ import LogoSVG from './logo-muye-fx.svg'; // Adjust path as needed
 // --- CONFIGURATION & THEME ---
 const getSupabaseConfig = () => {
   const supabaseUrl = 
-    (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SUPABASE_URL) ||
-    (typeof import.meta !== 'undefined' && import.meta.env.VITE_SUPABASE_URL) ||
-    (typeof process !== 'undefined' && process.env.REACT_APP_SUPABASE_URL);
-    
-  const supabaseAnonKey = 
-    (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
-    (typeof import.meta !== 'undefined' && import.meta.env.VITE_SUPABASE_ANON_KEY) ||
-    (typeof process !== 'undefined' && process.env.REACT_APP_SUPABASE_ANON_KEY);
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SUPABASE_URL) ||
+  (typeof import.meta !== 'undefined' && import.meta.env.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && process.env.REACT_APP_SUPABASE_URL) ||
+  "https://fyjhwdweswkupxksqsde.supabase.co";
+
+const supabaseAnonKey =
+  (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) ||
+  (typeof import.meta !== 'undefined' && import.meta.env.VITE_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && process.env.REACT_APP_SUPABASE_ANON_KEY) ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ5amh3ZHdlc3drdXB4a3Nxc2RlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM4NTMxNjYsImV4cCI6MjA3OTQyOTE2Nn0.O-dsEzLoMdoGuApWcy7U4G2Mg_dh4tqwgHYxeo902fE";
 
   if (supabaseUrl && supabaseAnonKey) {
     console.log("🔌 Using REAL Supabase client");
     return createClient(supabaseUrl, supabaseAnonKey);
   }
-  
-  console.warn("⚠️ Using MOCK Supabase client. Set environment variables for real authentication.");
-  const mockSupabase = {
+
+  console.warn("⚠️ Using MOCK Supabase client.");
+  return {
     auth: {
-      signUp: async ({ email, password }) => {
-        await new Promise(r => setTimeout(r, 1500));
-        return { data: { user: { email } }, error: null };
-      },
-      signInWithPassword: async ({ email, password }) => {
-        await new Promise(r => setTimeout(r, 1500));
-        if (email === 'error@test.com') return { error: { message: 'Invalid credentials' } };
-        return { data: { user: { email } }, error: null };
-      },
-      signInWithOAuth: async () => ({ data: { url: '#' }, error: null }),
+      signUp: async ({ email }) => ({
+        data: { user: { email } },
+        error: null
+      }),
+      signInWithPassword: async ({ email }) => ({
+        data: { user: { email } },
+        error: null
+      }),
+      resetPasswordForEmail: async () => ({ data: {}, error: null }),
+      signInWithOAuth: async () => ({ data: { url: '#' }, error: null })
     }
   };
-  
-  return mockSupabase;
 };
 
 const supabase = getSupabaseConfig();
@@ -245,20 +246,39 @@ const InputField = ({ icon: Icon, type, placeholder, value, onChange, showPasswo
 
 // --- AUTH SCREEN COMPONENT ---
 const AuthScreen = ({ onAuthSuccess }) => {
-  const [isSignUp, setIsSignUp] = useState(false);
+  // authMode: 'signin' | 'signup' | 'forgot'
+  const [authMode, setAuthMode] = useState('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null); // New state for success messages
   const [showPassword, setShowPassword] = useState(false);
   const [showError, setShowError] = useState(false);
 
-  const toggleMode = () => {
+  const toggleAuthMode = () => {
     setShowError(false);
-    setIsSignUp(prev => !prev);
+    setSuccessMsg(null);
+    setAuthMode(prev => prev === 'signin' ? 'signup' : 'signin');
     setError(null);
     setEmail('');
     setPassword('');
+  };
+
+  const switchToForgot = () => {
+    setShowError(false);
+    setSuccessMsg(null);
+    setAuthMode('forgot');
+    setError(null);
+    // Keep email if typed
+    setPassword('');
+  };
+
+  const switchToLogin = () => {
+    setShowError(false);
+    setSuccessMsg(null);
+    setAuthMode('signin');
+    setError(null);
   };
   
   React.useEffect(() => {
@@ -274,16 +294,32 @@ const AuthScreen = ({ onAuthSuccess }) => {
     setLoading(true);
     setError(null);
     setShowError(false);
+    setSuccessMsg(null);
 
     try {
-      const response = isSignUp
-        ? await supabase.auth.signUp({ email, password })
-        : await supabase.auth.signInWithPassword({ email, password });
+      if (authMode === 'signup') {
+        const { error: authError } = await supabase.auth.signUp({ email, password });
+        if (authError) throw authError;
+        if (onAuthSuccess) onAuthSuccess();
+      } 
+      else if (authMode === 'signin') {
+        const { error: authError } = await supabase.auth.signInWithPassword({ email, password });
+        if (authError) throw authError;
+        if (onAuthSuccess) onAuthSuccess();
+      } 
+      else if (authMode === 'forgot') {
+        // --- FORGOT PASSWORD LOGIC ---
+        // Ensure this URL points to where your UpdatePasswordScreen is located
+        const redirectTo = typeof window !== 'undefined' ? `${window.location.origin}/update-password` : undefined;
+        
+        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: redirectTo,
+        });
+        
+        if (resetError) throw resetError;
+        setSuccessMsg("Check your email for the password reset link.");
+      }
 
-      const { error: authError } = response;
-
-      if (authError) throw authError;
-      if (onAuthSuccess) onAuthSuccess();
     } catch (err) {
       setError(err.message || 'An unknown error occurred.');
     } finally {
@@ -299,6 +335,25 @@ const AuthScreen = ({ onAuthSuccess }) => {
     });
     if (oauthError) setError(oauthError.message);
     if (data?.url) window.location.href = data.url;
+  };
+
+  // Helper text content based on mode
+  const getHeaderText = () => {
+    if (authMode === 'signup') return 'Create Journal Account';
+    if (authMode === 'forgot') return 'Reset Password';
+    return 'Welcome Back';
+  };
+
+  const getSubHeaderText = () => {
+    if (authMode === 'signup') return 'Mastering the Mentals';
+    if (authMode === 'forgot') return 'Enter email to receive recovery link';
+    return 'Sign in to Continue Journalling';
+  };
+
+  const getButtonText = () => {
+    if (authMode === 'signup') return 'Create Account';
+    if (authMode === 'forgot') return 'Send Recovery Link';
+    return 'Sign In';
   };
 
   return (
@@ -338,19 +393,25 @@ const AuthScreen = ({ onAuthSuccess }) => {
 
           <div className="text-center mb-6">
             <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white mb-1 transition-all duration-500">
-              {isSignUp ? 'Create Journal Account' : 'Welcome Back'}
+              {getHeaderText()}
             </h2>
             <p className="text-gray-400 text-xs sm:text-sm flex justify-center items-center gap-2">
               <Activity size={14} className="text-green-400 animate-pulse" />
-              {isSignUp ? 'Mastering the Mentals' : 'Sign in to Continue Journalling'}
+              {getSubHeaderText()}
             </p>
           </div>
 
-          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showError ? 'max-h-20 mb-3' : 'max-h-0 mb-0'}`}>
+          <div className={`overflow-hidden transition-all duration-300 ease-in-out ${showError || successMsg ? 'max-h-24 mb-3' : 'max-h-0 mb-0'}`}>
             {error && (
               <div className="bg-red-500/10 border border-red-500/50 rounded-lg p-3 flex items-center gap-3 text-red-200 text-xs sm:text-sm">
                 <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
                 {error}
+              </div>
+            )}
+            {successMsg && (
+              <div className="bg-green-500/10 border border-green-500/50 rounded-lg p-3 flex items-center gap-3 text-green-200 text-xs sm:text-sm">
+                <Mail size={16} className="text-green-500 flex-shrink-0" />
+                {successMsg}
               </div>
             )}
           </div>
@@ -364,24 +425,41 @@ const AuthScreen = ({ onAuthSuccess }) => {
               onChange={(e) => setEmail(e.target.value)}
             />
             
-            <div className="relative">
-              <InputField 
-                icon={Lock}
-                type={showPassword ? "text" : "password"}
-                placeholder="Password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                showPasswordToggle={true}
-                onTogglePassword={() => setShowPassword(!showPassword)}
-              />
-              {isSignUp && <PasswordStrength password={password} />}
-            </div>
+            {/* Password Field: Hidden in Forgot Password Mode */}
+            {authMode !== 'forgot' && (
+              <div className="relative">
+                <InputField 
+                  icon={Lock}
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  showPasswordToggle={true}
+                  onTogglePassword={() => setShowPassword(!showPassword)}
+                />
+                
+                {authMode === 'signup' && <PasswordStrength password={password} />}
+                
+                {/* --- FORGOT PASSWORD LINK --- */}
+                {authMode === 'signin' && (
+                  <div className="absolute right-0 top-[60px] flex justify-end">
+                    <button 
+                      type="button"
+                      onClick={switchToForgot}
+                      className="text-xs text-cyan-400/80 hover:text-cyan-400 transition-colors"
+                    >
+                      Forgot Password?
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-5 py-3 rounded-xl font-bold text-black text-base sm:text-lg relative overflow-hidden group 
-                         transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]"
+              className={`w-full ${authMode === 'signin' ? 'mt-8' : 'mt-5'} py-3 rounded-xl font-bold text-black text-base sm:text-lg relative overflow-hidden group 
+                          transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98]`}
               style={{
                 background: `linear-gradient(135deg, ${THEME.colors.cyan}, ${THEME.colors.green})`,
                 boxShadow: `0 0 10px ${THEME.colors.green}00, 0 4px 15px -3px ${THEME.colors.green}60`,
@@ -396,7 +474,7 @@ const AuthScreen = ({ onAuthSuccess }) => {
                   <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                 ) : (
                   <>
-                    {isSignUp ? 'Create Account' : 'Sign In'}
+                    {getButtonText()}
                     <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -404,35 +482,47 @@ const AuthScreen = ({ onAuthSuccess }) => {
             </button>
           </form>
 
-          <div className="my-4 flex items-center gap-4">
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-600 to-transparent" />
-            <span className="text-xs text-gray-500 uppercase tracking-widest">Or</span>
-            <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-600 to-transparent" />
-          </div>
+          {/* Social Logins - Only show if NOT in forgot mode */}
+          {authMode !== 'forgot' && (
+            <>
+              <div className="my-4 flex items-center gap-4">
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-600 to-transparent" />
+                <span className="text-xs text-gray-500 uppercase tracking-widest">Or</span>
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-600 to-transparent" />
+              </div>
 
-          <button
-            onClick={handleGoogleSignIn}
-            className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all duration-300 group transform hover:scale-[1.02] active:scale-[0.98]"
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = THEME.colors.cyan}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-            </svg>
-            <span className="font-medium text-sm">Google Account</span>
-          </button>
+              <button
+                onClick={handleGoogleSignIn}
+                className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-white transition-all duration-300 group transform hover:scale-[1.02] active:scale-[0.98]"
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = THEME.colors.cyan}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)'}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24">
+                  <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                  <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                  <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
+                  <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+                </svg>
+                <span className="font-medium text-sm">Google Account</span>
+              </button>
+            </>
+          )}
 
           <div className="mt-6 text-center">
-            <button onClick={toggleMode} className="group text-sm text-gray-400 hover:text-white transition-colors">
-              {isSignUp ? "Already have an Account?" : "New to MuyeFX?"}
-              <span className="ml-2 font-bold relative inline-block" style={{ color: THEME.colors.cyan }}>
-                {isSignUp ? 'Log In' : 'Create Account'}
-                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-cyan-400 transition-all duration-300 group-hover:w-full" />
-              </span>
-            </button>
+            {authMode === 'forgot' ? (
+              <button onClick={switchToLogin} className="group text-sm text-gray-400 hover:text-white transition-colors flex items-center justify-center gap-2 w-full">
+                <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
+                Back to Log In
+              </button>
+            ) : (
+              <button onClick={toggleAuthMode} className="group text-sm text-gray-400 hover:text-white transition-colors">
+                {authMode === 'signup' ? "Already have an Account?" : "New to MuyeFX?"}
+                <span className="ml-2 font-bold relative inline-block" style={{ color: THEME.colors.cyan }}>
+                  {authMode === 'signup' ? 'Log In' : 'Create Account'}
+                  <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-cyan-400 transition-all duration-300 group-hover:w-full" />
+                </span>
+              </button>
+            )}
           </div>
         </div>
       </div>
