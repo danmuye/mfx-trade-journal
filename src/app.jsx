@@ -1069,7 +1069,7 @@ const TradeModal = ({ isOpen, onClose, onSave, tradeToEdit, user }) => {
   const sessionOptions = ['Asian', 'London', 'NYC', 'Close', 'Unspecified'];
   const mistakeOptions = [
     'None', 'Over-leveraging', 'Revenge Trading', 'No Stop Loss', 'Late Entry/FOMO', 
-    'Early Exit', 'Over-trading', 'Misreading Chart/Bias', 'Breaching Plan', 'Other'
+    'Early Exit', 'Over-trading', 'Misreading Chart/Bias','Poor Execution', 'Breaching Plan', 'Other'
   ];
 
   return (
