@@ -77,6 +77,7 @@ Add screenshots here.
 /assets/dashboard.png
 /assets/journal.png
 /assets/analytics.png
+/assets/mistakes.png
 ```
 
 ---
