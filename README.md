@@ -71,14 +71,17 @@ A modern Forex Trading Journal and Performance Analytics platform built to help 
 
 ## Screenshots
 
-Add screenshots here.
-
-```md
+### Dashboard
 ![Dashboard](assets/dashboard.png)
+
+### Journal
 ![Journal](assets/journal.png)
+
+### Analytics
 ![Analytics](assets/analytics.png)
+
+### Mistakes
 ![Mistakes](assets/mistakes.png)
-```
 
 ---
 
