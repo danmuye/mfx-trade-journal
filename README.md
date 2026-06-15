@@ -90,7 +90,7 @@ A modern Forex Trading Journal and Performance Analytics platform built to help 
 ### Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/muye-fx-journal.git
+git clone https://github.com/danmuye/muye-fx-journal.git
 ```
 
 ### Navigate Into Project
